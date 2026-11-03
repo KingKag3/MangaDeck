@@ -52,6 +52,16 @@ export default function LibraryPage() {
   const [cat, setCat] = useState<number | 'all'>('all');
   const [search, setSearch] = useState('');
   const [view, setView] = useState<View>(loadView);
+  const [viewOpen, setViewOpen] = useState(false);
+  useEffect(() => {
+    if (!viewOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as Element).closest('.popover-wrap')) setViewOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [viewOpen]);
+  const activeFilters = Number(view.unreadOnly) + Number(view.downloadedOnly) + Number(view.desc);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
@@ -189,31 +199,50 @@ export default function LibraryPage() {
           <option value="added">Date added</option>
           <option value="updated">Latest chapter</option>
         </select>
-        <button className="btn ghost" onClick={() => setView({ ...view, desc: !view.desc })} title="Reverse order">
-          {view.desc ? '↓ Desc' : '↑ Asc'}
-        </button>
-        <button
-          className={`btn ghost ${view.unreadOnly ? 'on' : ''}`}
-          onClick={() => setView({ ...view, unreadOnly: !view.unreadOnly })}
-        >
-          Unread
-        </button>
-        <button
-          className={`btn ghost ${view.downloadedOnly ? 'on' : ''}`}
-          onClick={() => setView({ ...view, downloadedOnly: !view.downloadedOnly })}
-        >
-          Downloaded
-        </button>
-        <label className="density" title="Cover size">
-          <input
-            type="range"
-            min={100}
-            max={260}
-            step={10}
-            value={settings.gridWidth}
-            onChange={(e) => updateSettings({ gridWidth: Number(e.target.value) })}
-          />
-        </label>
+        <div className="popover-wrap">
+          <button
+            className={`btn ghost ${viewOpen || activeFilters > 0 ? 'on' : ''}`}
+            onClick={() => setViewOpen(!viewOpen)}
+            aria-expanded={viewOpen}
+          >
+            View{activeFilters > 0 ? ` · ${activeFilters}` : ''}
+          </button>
+          {viewOpen && (
+            <div className="popover popover-right view-pop">
+              <label className="check">
+                <input type="checkbox" checked={view.desc} onChange={(e) => setView({ ...view, desc: e.target.checked })} />
+                <span>Reverse order</span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={view.unreadOnly}
+                  onChange={(e) => setView({ ...view, unreadOnly: e.target.checked })}
+                />
+                <span>Only unread</span>
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={view.downloadedOnly}
+                  onChange={(e) => setView({ ...view, downloadedOnly: e.target.checked })}
+                />
+                <span>Only downloaded</span>
+              </label>
+              <label className="field density">
+                <span>Cover size</span>
+                <input
+                  type="range"
+                  min={100}
+                  max={260}
+                  step={10}
+                  value={settings.gridWidth}
+                  onChange={(e) => updateSettings({ gridWidth: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+          )}
+        </div>
         <button
           className={`btn ghost ${selecting ? 'on' : ''}`}
           onClick={() => {

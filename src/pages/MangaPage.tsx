@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type Chapter } from '../api/queries';
 import { Cover } from '../components/Cover';
+import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
@@ -16,6 +17,8 @@ import {
   type ReaderMode,
 } from '../lib/settings';
 
+const TAG_LIMIT = 8;
+
 export default function MangaPage() {
   const { id: idParam } = useParams();
   const id = Number(idParam);
@@ -27,7 +30,9 @@ export default function MangaPage() {
   const chapters = useQuery({ queryKey: ['chapters', id], queryFn: () => Q.chapters(id) });
   const categories = useQuery({ queryKey: ['categories'], queryFn: Q.categories });
 
+  const backdrop = useImage(manga.data?.thumbnailUrl);
   const [expanded, setExpanded] = useState(false);
+  const [allTags, setAllTags] = useState(false);
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -165,6 +170,7 @@ export default function MangaPage() {
   return (
     <div className="page manga-page">
       <section className="hero">
+        {backdrop.src && !backdrop.failed && <div className="hero-bg" style={{ backgroundImage: `url("${backdrop.src}")` }} />}
         <div className="hero-cover">
           <Cover path={m.thumbnailUrl} alt={m.title} />
         </div>
@@ -178,11 +184,16 @@ export default function MangaPage() {
           </div>
           {m.genre?.length > 0 && (
             <div className="chips">
-              {m.genre.map((g) => (
+              {(allTags ? m.genre : m.genre.slice(0, TAG_LIMIT)).map((g) => (
                 <span key={g} className="chip">
                   {g}
                 </span>
               ))}
+              {m.genre.length > TAG_LIMIT && (
+                <button className="chip chip-more" onClick={() => setAllTags(!allTags)}>
+                  {allTags ? 'Show less' : `+${m.genre.length - TAG_LIMIT} more`}
+                </button>
+              )}
             </div>
           )}
           {m.description && (
