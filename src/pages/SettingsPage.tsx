@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { clearTokens, getAccessToken, getServer, setServer } from '../api/client';
-import { Q } from '../api/queries';
-import { PageHeader, toast } from '../components/ui';
+import { M, Q } from '../api/queries';
+import { PageHeader, errorToast, toast } from '../components/ui';
+import { PRESET_LABELS, type PaceConfig, type PacePreset } from '../lib/pacer';
 import LoginDialog from '../components/LoginDialog';
 import { updateSettings, useSettings, type Direction, type Fit, type ReaderMode } from '../lib/settings';
 
@@ -14,6 +15,14 @@ export default function SettingsPage() {
   const [signedIn, setSignedIn] = useState(!!getAccessToken());
 
   const info = useQuery({ queryKey: ['server-info'], queryFn: Q.serverInfo, retry: false });
+  const parallel = useQuery({ queryKey: ['max-sources-parallel'], queryFn: Q.maxSourcesInParallel, retry: false });
+  const setParallel = useMutation({
+    mutationFn: M.setMaxSourcesInParallel,
+    onSuccess: (n) => qc.setQueryData(['max-sources-parallel'], n),
+    onError: errorToast,
+  });
+  const num = (v: string) => Math.max(0, Number(v) || 0);
+  const setCustom = (p: Partial<PaceConfig>) => updateSettings({ paceCustom: { ...s.paceCustom, ...p } });
 
   function saveServer() {
     setServer(server);
@@ -109,6 +118,56 @@ export default function SettingsPage() {
           </label>
         </div>
         <p className="muted small">Each manga can override mode, direction and fit from the reader's settings panel.</p>
+      </section>
+
+      <section className="panel">
+        <h2>Bulk downloads</h2>
+        <p className="muted small">
+          Downloading many chapters at once can get you blocked by a source. Bulk downloads go one chapter at a time with a
+          pause in between; the pause is randomised a little so it does not look like a robot.
+        </p>
+        <label className="field">
+          <span>Speed</span>
+          <select className="input" value={s.pacePreset} onChange={(e) => updateSettings({ pacePreset: e.target.value as PacePreset })}>
+            {(Object.keys(PRESET_LABELS) as PacePreset[]).map((p) => (
+              <option key={p} value={p}>
+                {PRESET_LABELS[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {s.pacePreset === 'custom' && (
+          <div className="grid-3">
+            <label className="field">
+              <span>Wait between chapters (seconds)</span>
+              <input type="number" min={0} max={600} value={s.paceCustom.delay} onChange={(e) => setCustom({ delay: num(e.target.value) })} />
+            </label>
+            <label className="field">
+              <span>Long break every N chapters (0 = never)</span>
+              <input type="number" min={0} max={200} value={s.paceCustom.breakEvery} onChange={(e) => setCustom({ breakEvery: num(e.target.value) })} />
+            </label>
+            <label className="field">
+              <span>Long break length (seconds)</span>
+              <input type="number" min={0} max={3600} value={s.paceCustom.breakSecs} onChange={(e) => setCustom({ breakSecs: num(e.target.value) })} />
+            </label>
+          </div>
+        )}
+        <label className="field">
+          <span>
+            Sources downloading at the same time (server setting): {parallel.data === undefined ? '…' : parallel.data}
+          </span>
+          <input
+            type="range"
+            min={1}
+            max={6}
+            value={parallel.data ?? 6}
+            disabled={parallel.data === undefined || setParallel.isPending}
+            onChange={(e) => setParallel.mutate(Number(e.target.value))}
+          />
+        </label>
+        <p className="muted small">
+          Lower is gentler when a bulk job mixes several sources. Waits only run while Mangadeck is open in a browser tab.
+        </p>
       </section>
 
       <section className="panel">

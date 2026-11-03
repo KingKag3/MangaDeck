@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Q } from '../api/queries';
+import { startPacer } from '../lib/pacer';
 
 const NAV = [
   { to: '/', label: 'Library', icon: 'M4 5h4v14H4zM10 5h4v14h-4zM16.5 6l3.7 1-3 12-3.7-1z' },
@@ -11,6 +13,9 @@ const NAV = [
 ];
 
 export default function Layout() {
+  // Paced bulk downloads keep running while any page of the app is open.
+  useEffect(() => startPacer(), []);
+
   const { data: dl } = useQuery({
     queryKey: ['downloads'],
     queryFn: Q.downloads,

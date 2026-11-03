@@ -1,6 +1,8 @@
 import { fetchBlob, resolveUrl } from '../api/client';
-import { M, Q, type Chapter } from '../api/queries';
+import { M, type Chapter } from '../api/queries';
 import { ZipBuilder } from './zip';
+import { downloadOne, paceConfig, waitMs } from './pacer';
+import { getSettings } from './settings';
 
 export interface ExportProgress {
   chapter: number; // chapters finished
@@ -158,40 +160,29 @@ export async function pickSaveFile(fileName: string): Promise<SaveHandle | null>
   }
 }
 
-/* ---------- Use Suwayomi's own download queue ---------- */
-
-const sleep = (ms: number, signal?: AbortSignal) =>
-  new Promise<void>((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => (clearTimeout(t), reject(signal.reason)), { once: true });
-  });
+/* ---------- Use Suwayomi's own download queue, politely ---------- */
 
 /**
- * Queue chapters in Suwayomi's downloader and wait until they are on the server, so they show in the Downloads
- * page and packing can read local copies. Chapters that keep failing are left to the source fetch afterwards.
- * Cancelling removes whatever is still queued. Returns how many chapters failed.
+ * Download chapters through Suwayomi one at a time with the pause from Settings between them (so the source does
+ * not see a flood), and wait until they are all on the server. Chapters the server gives up on are left to the
+ * source fetch while packing. Cancelling removes the chapter in progress. Returns how many failed.
  */
 export async function queueAndWait(
   ids: number[],
   onProgress: (done: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<number> {
-  if (!ids.length) return 0;
-  const mine = new Set(ids);
+  const cfg = paceConfig(getSettings());
+  let failed = 0;
   onProgress(0, ids.length);
-  await M.enqueueDownloads(ids);
-  await M.startDownloader(); // safe: the queue is not empty now
-  try {
-    for (;;) {
-      await sleep(2000, signal);
-      const { queue } = await Q.downloads();
-      const left = queue.filter((i) => mine.has(i.chapter.id));
-      onProgress(ids.length - left.length, ids.length);
-      if (left.length === 0) return 0;
-      if (left.every((i) => i.state === 'ERROR' && i.tries >= 3)) return left.length;
-    }
-  } catch (e) {
-    if (signal?.aborted) await M.dequeueDownloads(ids).catch(() => undefined);
-    throw e;
+  for (const [i, id] of ids.entries()) {
+    signal?.throwIfAborted();
+    if ((await downloadOne(id, signal)) === 'failed') failed++;
+    onProgress(i + 1, ids.length);
+    if (i < ids.length - 1) await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, waitMs(cfg, i + 1));
+      signal?.addEventListener('abort', () => (clearTimeout(t), reject(signal.reason)), { once: true });
+    });
   }
+  return failed;
 }

@@ -242,6 +242,11 @@ export const Q = {
     return d.libraryUpdateStatus.jobsInfo;
   },
 
+  async maxSourcesInParallel(): Promise<number> {
+    const d = await gql(`{ settings { maxSourcesInParallel } }`);
+    return d.settings.maxSourcesInParallel;
+  },
+
   async serverInfo(): Promise<{ name: string; version: string; buildType: string }> {
     const d = await gql(`{ aboutServer { name version buildType } }`);
     return d.aboutServer;
@@ -346,6 +351,14 @@ export const M = {
   },
   clearDownloader() {
     return gql(`mutation { clearDownloader(input: {}) { downloadStatus { state } } }`);
+  },
+
+  async setMaxSourcesInParallel(n: number): Promise<number> {
+    const d = await gql(
+      `mutation($n: Int!) { setSettings(input: { settings: { maxSourcesInParallel: $n } }) { settings { maxSourcesInParallel } } }`,
+      { n },
+    );
+    return d.setSettings.settings.maxSourcesInParallel;
   },
 
   updateLibrary() {

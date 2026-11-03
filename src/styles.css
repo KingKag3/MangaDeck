@@ -1761,3 +1761,28 @@ input[type='range'] {
 .hero-bg {
   pointer-events: none;
 }
+
+/* ---------- Paced downloads ---------- */
+
+.paced {
+  margin-bottom: 26px;
+}
+.paced-head {
+  margin-bottom: 10px;
+  align-items: baseline;
+}
+.paced-head h2 {
+  font-size: 1.05rem;
+}
+.paced-clear {
+  margin-left: auto;
+}
+.paced-row .row-title {
+  display: block;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 14px;
+}

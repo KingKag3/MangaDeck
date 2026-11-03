@@ -8,6 +8,7 @@ import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
+import { estimateWaitMs, formatDuration, paceConfig, startPacedJob } from '../lib/pacer';
 import { buildCbz, canSaveToDisk, pickSaveFile, queueAndWait, safeFileName, saveBlob } from '../lib/export';
 import {
   effectivePrefs,
@@ -190,6 +191,15 @@ export default function MangaPage() {
     },
     onError: errorToast,
   });
+
+  // Several chapters go through the paced downloader (a wait between chapters, so the source does not ban you).
+  function paced(ids: number[]) {
+    if (ids.length <= 1) return download.mutate(ids);
+    const { added } = startPacedJob({ title: manga.data!.title, mangaId: id, ids });
+    toast(
+      `Paced download started: ${added} chapter${added === 1 ? '' : 's'}, about ${formatDuration(estimateWaitMs(paceConfig(settings), added))} of waiting. Follow it on the Downloads page.`,
+    );
+  }
 
   const removeDownloads = useMutation({
     mutationFn: (ids: number[]) => M.deleteDownloads(ids),
@@ -448,7 +458,7 @@ export default function MangaPage() {
               className="btn ghost"
               onClick={() => {
                 const ids = all.filter((c) => !c.isDownloaded && !c.isRead).map((c) => c.id);
-                if (ids.length) download.mutate(ids);
+                if (ids.length) paced(ids);
                 else toast('No unread chapters left to download');
               }}
             >
@@ -458,7 +468,7 @@ export default function MangaPage() {
               className="btn ghost"
               onClick={() => {
                 const ids = all.filter((c) => !c.isDownloaded).map((c) => c.id);
-                if (ids.length) download.mutate(ids);
+                if (ids.length) paced(ids);
                 else toast('Everything here is already downloaded');
               }}
             >
@@ -549,7 +559,7 @@ export default function MangaPage() {
             <button className="btn ghost" onClick={() => patch.mutate({ ids: selIds, p: { isBookmarked: true } })}>
               Bookmark
             </button>
-            <button className="btn ghost" onClick={() => download.mutate(selIds)}>
+            <button className="btn ghost" onClick={() => paced(selIds)}>
               Download
             </button>
             <button className="btn ghost" onClick={() => removeDownloads.mutate(selIds)}>

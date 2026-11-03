@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { GroupPref } from './groups';
 import type { VolumeInfo } from './volumes';
+import type { PaceConfig, PacePreset } from './pacer';
 
 export type ReaderMode = 'paged' | 'webtoon';
 export type Direction = 'ltr' | 'rtl';
@@ -17,6 +18,8 @@ export interface Settings extends ReaderPrefs {
   gridWidth: number; // min cover width in px
   autoDownloadNext: number; // queue N unread chapters ahead when reading (0 = off)
   showBadges: boolean;
+  pacePreset: PacePreset; // wait between chapters of a bulk download
+  paceCustom: PaceConfig;
   showAllLanguages: boolean; // list sources in every language, not just English
   perManga: Record<string, Partial<ReaderPrefs>>;
   groups: Record<string, GroupPref>; // chosen scanlation group per manga
@@ -33,6 +36,8 @@ const defaults: Settings = {
   gridWidth: 150,
   autoDownloadNext: 0,
   showBadges: true,
+  pacePreset: 'normal',
+  paceCustom: { delay: 20, jitter: 0.3, breakEvery: 15, breakSecs: 120 },
   showAllLanguages: false,
   perManga: {},
   groups: {},

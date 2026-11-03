@@ -4,6 +4,7 @@ import { M, Q } from '../api/queries';
 import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Spinner, errorToast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
+import PacedJobs from '../components/PacedJobs';
 
 export default function DownloadsPage() {
   const qc = useQueryClient();
@@ -44,6 +45,8 @@ export default function DownloadsPage() {
           Clear queue
         </button>
       </PageHeader>
+
+      <PacedJobs />
 
       {queue.length === 0 ? (
         <Empty title="Nothing in the queue" hint="Download chapters from a manga page and they'll show up here." />
