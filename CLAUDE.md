@@ -48,7 +48,7 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   (`.pb` is Protocol Buffers; Suwayomi parses it, nobody reads it by hand).
 
 ## Testing approach used so far
-No test framework in the repo. Checks were done with Playwright against a live Suwayomi (Local source, generated
+Vitest covers `src/lib/groups.ts` (`npm test`, file `src/lib/groups.test.ts`). No UI tests in the repo. Checks were done with Playwright against a live Suwayomi (Local source, generated
 paged/webtoon/CBZ series) and by mocking `/api/graphql` with `page.route` for UI-only features (the group bar was
 tested that way). Not yet exercised: real extension sources, downloads of remote chapters, UI_LOGIN auth.
 Good next step: add Vitest for `src/lib/groups.ts` and a Playwright smoke test to the repo.
