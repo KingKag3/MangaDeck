@@ -1805,3 +1805,16 @@ input[type='range'] {
 .volume-dialog .btn {
   margin-top: 0;
 }
+
+.volume-import {
+  margin-top: 12px;
+}
+.volume-import .btn {
+  margin-top: 0;
+}
+.volume-status {
+  margin-top: 6px;
+}
+.error-text {
+  color: var(--danger);
+}

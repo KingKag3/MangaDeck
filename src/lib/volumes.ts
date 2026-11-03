@@ -127,6 +127,12 @@ function findHeadings(wikitext: string): Heading[] {
   return out;
 }
 
+/** "Chapter: 18–26", "Chapters 18-26", "Mission: 5", "Episode 3 to 9": a chapter word, then one number or a range. */
+const CHAPTER_WORDS = 'chapters?|ch|missions?|episodes?|acts?|stages?|rounds?|cases?|lessons?';
+const CHAPTER_REF = new RegExp(String.raw`\b(?:${CHAPTER_WORDS})\.?\s*:?\s*(\d+(?:\.\d+)?)(?:\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?))?`, 'gi');
+/** A bullet that starts with the chapter word itself: "*Mission: 1–5" counts, "*Short Mission: 14" does not. */
+const CHAPTER_LINE = new RegExp(String.raw`^\s*[*#:]*\s*(?:${CHAPTER_WORDS})\b`, 'i');
+
 /** Read one "Graphic novel list" volume: its chapter range, release date, ISBN and chapter titles. */
 function readVolume(params: Map<string, string>, volume: number, next: number): VolumeRange | null {
   let first = Infinity;
@@ -147,14 +153,18 @@ function readVolume(params: Map<string, string>, volume: number, next: number): 
         last = Math.max(last, next + n - 1);
       } else {
         // Some pages just say "* Chapter: 18–26" (or "Chapters 18-26", or a single "Chapter 5").
-        const text = plain(value);
-        const range = /chapters?\s*:?\s*(\d+(?:\.\d+)?)\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?)/i.exec(text);
-        const single = /chapters?\s*:?\s*(\d+(?:\.\d+)?)/i.exec(text);
-        const lo = range ? parseFloat(range[1]) : single ? parseFloat(single[1]) : NaN;
-        const hi = range ? parseFloat(range[2]) : lo;
-        if (Number.isFinite(lo) && hi >= lo) {
-          first = Math.min(first, lo);
-          last = Math.max(last, hi);
+        // Series name their chapters differently ("Mission: 12–17"); lines about extras ("Short Mission: 14") are not part of the run.
+        const text = plain(value)
+          .split('\n')
+          .filter((l) => CHAPTER_LINE.test(l))
+          .join('\n');
+        for (const m of text.matchAll(CHAPTER_REF)) {
+          const lo = parseFloat(m[1]);
+          const hi = m[2] ? parseFloat(m[2]) : lo;
+          if (Number.isFinite(lo) && hi >= lo) {
+            first = Math.min(first, lo);
+            last = Math.max(last, hi);
+          }
         }
       }
       continue;
@@ -274,19 +284,39 @@ async function wikitext(page: string): Promise<{ title: string; text: string } |
   return typeof text === 'string' ? { title: j.parse.title as string, text } : null;
 }
 
-/** Find the "List of <title> chapters" page on Wikipedia and read its volumes. Returns null if none is usable. */
+/**
+ * The title and shorter forms of it. Sources often add a subtitle ("Mushoku Tensei - Jobless Reincarnation") that
+ * the Wikipedia page name does not have.
+ */
+export function titleVariants(title: string): string[] {
+  const out = [title];
+  for (const sep of [' - ', ' – ', ' — ', ': ', ' (']) {
+    const i = title.indexOf(sep);
+    if (i > 2) out.push(title.slice(0, i));
+  }
+  out.push(title.replace(/\s*\([^)]*\)\s*/g, ' '));
+  return [...new Set(out.map((s) => s.trim()).filter((s) => s.length > 2))];
+}
+
+/** Find the "List of <title> chapters/volumes" page on Wikipedia and read its volumes. Returns null if none is usable. */
 export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
-  const candidates = [`List of ${title} chapters`];
-  const res = await fetch(
-    `${API}?action=query&list=search&srsearch=${encodeURIComponent(`${title} chapters list`)}&srlimit=6&format=json&origin=*`,
-  );
-  if (res.ok) {
+  const variants = titleVariants(title);
+  const candidates: string[] = [];
+  for (const v of variants) candidates.push(`List of ${v} chapters`, `List of ${v} volumes`);
+
+  // Search too. Short forms of the title only accept the exact page name, so "Fate" cannot land on another series.
+  for (const v of variants.slice(0, 2)) {
+    const res = await fetch(`${API}?action=query&list=search&srsearch=${encodeURIComponent(`${v} chapters list`)}&srlimit=6&format=json&origin=*`);
+    if (!res.ok) continue;
     const j = await res.json();
     for (const hit of (j?.query?.search ?? []) as { title: string }[]) {
-      if (/^list of .+ (chapters|volumes)/i.test(hit.title) && norm(hit.title).includes(norm(title))) candidates.push(hit.title);
+      if (!/^list of .+ (chapters|volumes)/i.test(hit.title)) continue;
+      const exact = [`list of ${v} chapters`, `list of ${v} volumes`].some((x) => norm(x) === norm(hit.title));
+      if (exact || (v === title && norm(hit.title).includes(norm(v)))) candidates.push(hit.title);
     }
   }
-  for (const c of candidates) {
+
+  for (const c of [...new Set(candidates)]) {
     const page = await wikitext(c);
     if (!page) continue;
     const ranges = parseVolumeRanges(page.text, title);

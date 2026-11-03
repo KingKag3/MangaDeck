@@ -50,6 +50,17 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   the heading that matches the title, then the longest. Empty (unreleased) volumes are skipped. When the parser learns
   something new, bump `PARSER_VERSION`: saved lookups from older versions are redone once when the manga is opened.
   Results are saved per manga in `settings.volumes`.
+  Also handled: sources add subtitles Wikipedia does not ("Mushoku Tensei - Jobless Reincarnation"), so `titleVariants()`
+  tries shorter names (exact "List of X chapters/volumes" pages only); chapter words other than "Chapter" ("Mission: 1–5"),
+  and only bullets that start with the chapter word count ("*Short Mission: 14" / "*Extra Mission" do not).
+  When there is no automatic source, the manga page offers **Set volumes** (`VolumeDialog`): type `1: 0-12` lines,
+  paste a volume list, or **import from a wiki link** (`wikiImport.ts`: a Wikipedia list page, or one volume page of a
+  Fandom wiki such as `…/wiki/Manga_Volume_1`, which follows Volume 2, 3, … and reads each "Chapters" section).
+  Hand-entered volumes (`source: 'manual'`) are never replaced by a lookup.
+  **Tried and rejected** (do not redo): MangaDex (browsers are bot-challenged; through a Vite/nginx relay it works but
+  licensed series have few volumes filled in; Solo Leveling had only vol 1), Kitsu (`volumeNumber` is a placeholder:
+  every Solo Leveling chapter is volume 1), AniList/MyAnimeList (volume counts only), Amazon/BookWalker (no chapter
+  ranges, no free API, bot checks, no CORS).
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
   `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.

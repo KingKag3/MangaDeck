@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText } from './volumes';
+import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText, titleVariants } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -322,5 +322,59 @@ describe('parseVolumeText', () => {
       { volume: 2, first: 13, last: 26 },
     ];
     expect(parseVolumeText(volumeRangesToText(ranges))).toEqual(ranges);
+  });
+});
+
+describe('titleVariants', () => {
+  it('adds the title without a subtitle or bracketed note', () => {
+    expect(titleVariants('Mushoku Tensei - Jobless Reincarnation')).toEqual(['Mushoku Tensei - Jobless Reincarnation', 'Mushoku Tensei']);
+    expect(titleVariants('Re:Zero: Starting Life (Official)')).toEqual(['Re:Zero: Starting Life (Official)', 'Re:Zero', 'Re:Zero: Starting Life']);
+  });
+
+  it('keeps a plain title as it is and ignores tiny leftovers', () => {
+    expect(titleVariants('Dandadan')).toEqual(['Dandadan']);
+    expect(titleVariants('A - B')).toEqual(['A - B']);
+  });
+});
+
+describe('parseVolumeRanges, "Mission" style pages', () => {
+  const page = `{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList = *Mission: 1–5
+| Summary = Mission 99 is mentioned here but is not a chapter list.
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterList = *Mission: 6–11
+*Short Mission: 1
+}}
+{{Graphic novel list
+| VolumeNumber = 3
+| ChapterList = *Mission: 12–17
+*Extra Mission: 2
+*Short Mission: 15, 17-18
+}}
+{{Graphic novel list
+| VolumeNumber = 4
+| ChapterList = *Mission: 18
+}}`;
+
+  it('reads the Mission bullets and ignores short, extra and bonus lines', () => {
+    expect(parseVolumeRanges(page).map((r) => [r.volume, r.first, r.last])).toEqual([
+      [1, 1, 5],
+      [2, 6, 11],
+      [3, 12, 17],
+      [4, 18, 18],
+    ]);
+  });
+
+  it('understands other chapter words and several bullets in one volume', () => {
+    const text = `{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList =
+*Episode: 1–4
+*Episode: 5–8
+}}`;
+    expect(parseVolumeRanges(text).map((r) => [r.volume, r.first, r.last])).toEqual([[1, 1, 8]]);
   });
 });
