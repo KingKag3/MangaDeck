@@ -1,0 +1,30 @@
+# Mangadeck + (optionally) Suwayomi-Server.
+#
+#   docker compose up -d --build            -> Mangadeck on http://localhost:8080
+#
+# Already running Suwayomi somewhere else? Delete the `suwayomi` service below and set
+# SUWAYOMI_URL on `mangadeck` to its address (e.g. http://192.168.1.50:4567).
+
+services:
+  mangadeck:
+    build: .
+    container_name: mangadeck
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      # Where nginx forwards /api to. Use the service name when Suwayomi runs in this same compose file.
+      SUWAYOMI_URL: ${SUWAYOMI_URL:-http://suwayomi:4567}
+    depends_on:
+      - suwayomi
+
+  suwayomi:
+    image: ghcr.io/suwayomi/tachidesk:stable
+    container_name: suwayomi
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+    volumes:
+      - ./suwayomi-data:/home/suwayomi/.local/share/Tachidesk
+    ports:
+      - "4567:4567"

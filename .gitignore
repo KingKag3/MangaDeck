@@ -1,0 +1,7 @@
+node_modules
+dist
+.env.local
+*.log
+suwayomi-data/
+run-with-log.bat
+.DS_Store
