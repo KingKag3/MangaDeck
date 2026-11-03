@@ -11,8 +11,14 @@ export function chapterLabel(c: { name: string; chapterNumber: number }): string
   return c.name && c.name !== `Chapter ${numStr}` ? `Ch. ${numStr} · ${c.name}` : `Chapter ${numStr}`;
 }
 
+/** Suwayomi sends some dates in milliseconds (uploadDate) and some in seconds (fetchedAt). Anything below 1e11 is seconds. */
+export function toMs(v: string | number | null | undefined): number {
+  const t = Number(v);
+  return t > 0 && t < 1e11 ? t * 1000 : t;
+}
+
 export function timeAgo(ms: string | number | null | undefined): string {
-  const t = Number(ms);
+  const t = toMs(ms);
   if (!t) return '';
   const diff = Date.now() - t;
   const min = Math.floor(diff / 60000);
@@ -26,7 +32,7 @@ export function timeAgo(ms: string | number | null | undefined): string {
 }
 
 export function dayBucket(ms: string | number): string {
-  const t = Number(ms);
+  const t = toMs(ms);
   if (!t) return 'Unknown';
   const d = new Date(t);
   const today = new Date();
