@@ -7,7 +7,7 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { lookupVolumes, summarizeVolumes, volumeOf } from '../lib/volumes';
+import { lookupVolumes, summarizeVolumes, volumeColor, volumeOf } from '../lib/volumes';
 import {
   effectivePrefs,
   setGroupPref,
@@ -411,7 +411,8 @@ export default function MangaPage() {
               {volumes.map((v) => (
                 <button
                   key={v.volume}
-                  className={`volume-chip vol-${v.volume % 2 ? 'a' : 'b'} ${activeVolume === v.volume ? 'on' : ''} ${v.unread === 0 ? 'done' : ''}`}
+                  className={`volume-chip ${activeVolume === v.volume ? 'on' : ''} ${v.unread === 0 ? 'done' : ''}`}
+                  style={{ ['--vc' as string]: volumeColor(v.volume) }}
                   onClick={() => setVolFilter(activeVolume === v.volume ? null : v.volume)}
                   title={`${v.count} chapters · ${v.unread} unread`}
                 >
@@ -458,11 +459,12 @@ export default function MangaPage() {
               const started = !c.isRead && c.lastPageRead > 0;
               const vol = volumes.length ? volumeOf(c, volumeInfo?.ranges) : null;
               const newVolume = volumes.length > 0 && (i === 0 || volumeOf(shown[i - 1], volumeInfo?.ranges) !== vol);
-              const volClass = vol === null ? '' : vol % 2 ? 'vol-a' : 'vol-b';
+              const volStyle = vol === null ? undefined : { ['--vc' as string]: volumeColor(vol) };
+              const volClass = vol === null ? '' : 'in-volume';
               return (
                 <Fragment key={c.id}>
                   {newVolume && (
-                    <li className={`volume-divider ${volClass}`}>
+                    <li className={`volume-divider ${volClass}`} style={volStyle}>
                       <span>{vol === null ? 'Not in a volume yet' : `Volume ${vol}`}</span>
                       {vol !== null && (
                         <button
@@ -476,7 +478,10 @@ export default function MangaPage() {
                       )}
                     </li>
                   )}
-                <li className={`chapter ${volClass} ${c.isRead ? 'is-read' : ''} ${selected.has(c.id) ? 'selected' : ''}`}>
+                <li
+                  className={`chapter ${volClass} ${c.isRead ? 'is-read' : ''} ${selected.has(c.id) ? 'selected' : ''}`}
+                  style={volStyle}
+                >
                   <input
                     type="checkbox"
                     className="chapter-check"

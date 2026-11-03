@@ -1216,10 +1216,6 @@ input[type='range'] {
 
 /* ---------- Official volumes ---------- */
 
-:root {
-  --vol-a: #e8b04a;
-  --vol-b: #6aa0ff;
-}
 .link-btn {
   appearance: none;
   background: none;
@@ -1268,12 +1264,9 @@ input[type='range'] {
   color: var(--text);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--vol-a);
+  border-left: 4px solid var(--vc);
   border-radius: 10px;
   cursor: pointer;
-}
-.volume-chip.vol-b {
-  border-left-color: var(--vol-b);
 }
 .volume-chip span {
   color: var(--muted);
@@ -1282,8 +1275,12 @@ input[type='range'] {
   background: var(--surface-2);
 }
 .volume-chip.on {
-  background: var(--surface-3);
-  border-color: var(--accent);
+  background: color-mix(in srgb, var(--vc) 22%, var(--surface));
+  border-color: var(--vc);
+  box-shadow: 0 0 0 1px var(--vc);
+}
+.volume-chip.on b {
+  color: var(--vc);
 }
 .volume-chip.done {
   opacity: 0.6;
@@ -1300,26 +1297,19 @@ input[type='range'] {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--vol-a);
-  background: color-mix(in srgb, var(--vol-a) 10%, var(--surface-2));
-  border-top: 1px solid var(--line);
-}
-.volume-divider.vol-b {
-  color: var(--vol-b);
-  background: color-mix(in srgb, var(--vol-b) 10%, var(--surface-2));
-}
-.volume-divider:not(.vol-a):not(.vol-b) {
   color: var(--muted);
   background: var(--surface-2);
+  border-top: 1px solid var(--line);
+}
+.volume-divider.in-volume {
+  color: var(--vc);
+  background: color-mix(in srgb, var(--vc) 12%, var(--surface-2));
 }
 .volume-divider:first-child {
   border-top: 0;
 }
-.chapter.vol-a {
-  box-shadow: inset 3px 0 0 var(--vol-a);
-}
-.chapter.vol-b {
-  box-shadow: inset 3px 0 0 var(--vol-b);
+.chapter.in-volume {
+  box-shadow: inset 3px 0 0 var(--vc);
 }
 
 .main {

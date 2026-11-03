@@ -153,6 +153,11 @@ export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
 
 /* ---------- Mapping chapters to volumes ---------- */
 
+/** A distinct colour per volume (golden-angle hue steps keep neighbours apart). */
+export function volumeColor(volume: number): string {
+  return `hsl(${Math.round(volume * 137.5) % 360} 72% 62%)`;
+}
+
 const NAME_VOLUME = /\bvol(?:ume)?\.?\s*(\d+)/i;
 
 /** The official volume a chapter belongs to, or null. A "Vol. N" in the chapter name wins over the lookup. */
