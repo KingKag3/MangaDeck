@@ -7,10 +7,11 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
+import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
-import { estimateWaitMs, formatDuration, paceConfig, startPacedJob } from '../lib/pacer';
-import { buildCbz, canSaveToDisk, pickSaveFile, queueAndWait, safeFileName, saveBlob } from '../lib/export';
+import { markSeen } from '../lib/fresh';
+import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
+import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
 import {
   effectivePrefs,
   setGroupPref,
@@ -31,6 +32,9 @@ export default function MangaPage() {
   const qc = useQueryClient();
   const settings = useSettings();
 
+  // Opening a title clears its "new chapters" highlight in the library.
+  useEffect(() => markSeen(id), [id]);
+
   const manga = useQuery({ queryKey: ['manga', id], queryFn: () => Q.manga(id) });
   const chapters = useQuery({ queryKey: ['chapters', id], queryFn: () => Q.chapters(id) });
   const categories = useQuery({ queryKey: ['categories'], queryFn: Q.categories });
@@ -41,8 +45,29 @@ export default function MangaPage() {
   const [volFilter, setVolFilter] = useState<number | null>(null);
 
   // volume: the volume being packed, or 0 for the whole series
-  const [packing, setPacking] = useState<{ volume: number; done: number; total: number; phase: 'downloading' | 'packing' } | null>(null);
+  const [packing, setPacking] = useState<{
+    volume: number;
+    done: number;
+    total: number;
+    phase: 'downloading' | 'packing';
+    batch?: { index: number; total: number };
+  } | null>(null);
   const packAbort = useRef<AbortController | null>(null);
+
+  /** What goes into ComicInfo.xml for the whole series (volume 0) or one volume. */
+  function packMeta(volume: number, ranges: VolumeRange[] | undefined): PackMeta {
+    const vr = ranges?.find((r) => r.volume === volume);
+    return {
+      author: manga.data!.author,
+      artist: manga.data!.artist,
+      genre: manga.data!.genre,
+      summary: manga.data!.description,
+      web: manga.data!.realUrl,
+      totalVolumes: ranges?.length,
+      ...(volume === 0 ? {} : { released: vr?.released, isbn: vr?.isbn }),
+      titles: Object.assign({}, ...(ranges ?? []).filter((r) => volume === 0 || r.volume === volume).map((r) => r.titles ?? {})),
+    };
+  }
 
   async function pack(volume: number) {
     if (packing) return;
@@ -53,7 +78,6 @@ export default function MangaPage() {
         : volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
     if (!items.length) return;
     const series = manga.data!.title;
-    const vr = ranges?.find((r) => r.volume === volume);
     const suggested = `${safeFileName(series)} - ${volume === 0 ? 'Complete' : `Vol. ${String(volume).padStart(2, '0')}`}.cbz`;
     if (volume === 0 && !canSaveToDisk && !confirm(`This browser can't save straight to disk, so all ${items.length} chapters are built in memory first. That can run out of memory. Continue?`)) return;
 
@@ -84,16 +108,7 @@ export default function MangaPage() {
         series,
         items,
         volume: volume === 0 ? undefined : volume,
-        meta: {
-          author: manga.data!.author,
-          artist: manga.data!.artist,
-          genre: manga.data!.genre,
-          summary: manga.data!.description,
-          web: manga.data!.realUrl,
-          totalVolumes: ranges?.length,
-          ...(volume === 0 ? {} : { released: vr?.released, isbn: vr?.isbn }),
-          titles: Object.assign({}, ...(ranges ?? []).filter((r) => volume === 0 || r.volume === volume).map((r) => r.titles ?? {})),
-        },
+        meta: packMeta(volume, ranges),
         sink: writable ? (part) => writable.write(part) : undefined,
         onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing' }),
         signal: abort.signal,
@@ -104,6 +119,87 @@ export default function MangaPage() {
     } catch (e) {
       if (writable) await writable.abort().catch(() => undefined);
       if (abort.signal.aborted) toast('Cancelled');
+      else errorToast(e);
+    } finally {
+      packAbort.current = null;
+      setPacking(null);
+    }
+  }
+
+  /** Every volume as its own .cbz, into one folder you pick. Files already in the folder are skipped, so it can resume. */
+  async function packEachVolume() {
+    if (packing) return;
+    const ranges = settings.volumes[String(id)]?.ranges;
+    const list = summarizeVolumes(everything, ranges).map((v) => v.volume);
+    if (!list.length) return;
+    const series = manga.data!.title;
+    if (
+      !canPickFolder &&
+      !confirm(`This browser can't write into a folder, so each of the ${list.length} files is built in memory and offered as a separate download. Continue?`)
+    )
+      return;
+
+    // The folder picker has to open straight from the click, before any waiting.
+    let dir: Awaited<ReturnType<typeof pickFolder>> = null;
+    if (canPickFolder) {
+      try {
+        dir = await pickFolder();
+      } catch (e) {
+        return errorToast(e);
+      }
+      if (!dir) return;
+    }
+    const abort = new AbortController();
+    packAbort.current = abort;
+    const cfg = paceConfig(settings);
+    let saved = 0;
+    let skipped = 0;
+    try {
+      for (const [i, volume] of list.entries()) {
+        abort.signal.throwIfAborted();
+        const fileName = `${safeFileName(series)} - Vol. ${String(volume).padStart(2, '0')}.cbz`;
+        if (dir && (await fileSizeIn(dir, fileName)) > 0) {
+          skipped++;
+          continue;
+        }
+        const items = volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
+        const batch = { index: i + 1, total: list.length };
+        const missing = items.filter((it) => !it.chapter.isDownloaded).map((it) => it.chapter.id);
+        if (missing.length) {
+          setPacking({ volume, done: 0, total: missing.length, phase: 'downloading', batch });
+          const failed = await queueAndWait(missing, (done, total) => setPacking({ volume, done, total, phase: 'downloading', batch }), abort.signal);
+          refreshAll();
+          if (failed) toast(`Vol. ${volume}: ${failed} chapter${failed === 1 ? '' : 's'} failed to download; fetching from the source instead`, 'error');
+        }
+        setPacking({ volume, done: 0, total: items.length, phase: 'packing', batch });
+        const writable = dir ? await (await dir.getFileHandle(fileName, { create: true })).createWritable() : null;
+        try {
+          const { blob } = await buildCbz({
+            series,
+            items,
+            volume,
+            meta: packMeta(volume, ranges),
+            sink: writable ? (part) => writable.write(part) : undefined,
+            onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing', batch }),
+            signal: abort.signal,
+          });
+          if (writable) await writable.close();
+          else if (blob) saveBlob(blob, fileName);
+          saved++;
+        } catch (e) {
+          // Do not leave a half-written (or empty) file behind: the next run would think it is done.
+          if (writable) {
+            await writable.abort().catch(() => undefined);
+            await dir?.removeEntry(fileName).catch(() => undefined);
+          }
+          throw e;
+        }
+        // Same politeness as between chapters, before the next volume starts downloading.
+        if (missing.length && i < list.length - 1) await sleep(waitMs(cfg, 1), abort.signal);
+      }
+      toast(`Saved ${saved} volume file${saved === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} already in the folder` : ''}`);
+    } catch (e) {
+      if (abort.signal.aborted) toast(`Cancelled after ${saved} volume file${saved === 1 ? '' : 's'}`);
       else errorToast(e);
     } finally {
       packAbort.current = null;
@@ -448,7 +544,7 @@ export default function MangaPage() {
             )}
             {packing ? (
               <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
-                {packing.phase === 'downloading' ? 'Downloading' : 'Packing'} {packing.volume === 0 ? '' : `Vol. ${packing.volume} `}{packing.done}/{packing.total} · Cancel
+                {packing.phase === 'downloading' ? 'Downloading' : 'Packing'} {packing.volume === 0 ? '' : `Vol. ${packing.volume}${packing.batch ? ` (${packing.batch.index} of ${packing.batch.total})` : ''} `}{packing.done}/{packing.total} · Cancel
               </button>
             ) : (
               <button
@@ -529,8 +625,17 @@ export default function MangaPage() {
                     ? ' · entered by hand'
                     : ` · from Wikipedia (${volumeInfo.page})`}
               </span>
-              {volumeInfo && (
-                <span className="row gap">
+              <span className="row gap">
+                <button
+                  className="link-btn"
+                  onClick={packEachVolume}
+                  disabled={!!packing}
+                  title="Save every volume as its own .cbz into a folder you pick (files already there are skipped, so it can resume)"
+                >
+                  ⬇ Each volume as .cbz
+                </button>
+                {volumeInfo && (
+                  <>
                   {volumeInfo.source !== 'manual' && (
                     <button className="link-btn" onClick={() => findVolumes.mutate()} disabled={findVolumes.isPending}>
                       {findVolumes.isPending ? 'Refreshing…' : 'Refresh'}
@@ -542,8 +647,9 @@ export default function MangaPage() {
                   <button className="link-btn" onClick={() => setVolumeInfo(id, null)}>
                     Remove
                   </button>
-                </span>
-              )}
+                  </>
+                )}
+              </span>
             </div>
             <div className="volume-strip">
               {volumes.map((v) => (

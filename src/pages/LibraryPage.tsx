@@ -7,6 +7,9 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
+import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
+import { startPacedJob } from '../lib/pacer';
+import { visibleChapters } from '../lib/groups';
 import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
 import RecDialog, { RecPeek } from '../components/RecDialog';
 import SourceResults from '../components/SourceResults';
@@ -21,6 +24,9 @@ interface View {
 }
 
 const VIEW_KEY = 'mangadeck.libview';
+
+/** Chapters per title, keyed by id: what "Check for updates" is compared against. */
+const chapterCounts = (list: LibraryManga[]) => Object.fromEntries(list.map((m) => [String(m.id), m.chapters.totalCount]));
 
 function loadView(): View {
   try {
@@ -115,8 +121,16 @@ export default function LibraryPage() {
     refetchInterval: (q) => (q.state.data?.isRunning ? 2000 : false),
   });
 
+  const fresh = useFresh();
+  const freshIds = Object.keys(fresh);
+  const [onlyFresh, setOnlyFresh] = useState(false);
+
   const runUpdate = useMutation({
-    mutationFn: M.updateLibrary,
+    mutationFn: () => {
+      // Remember how many chapters everything has now, to see afterwards which titles grew.
+      snapshotCounts(chapterCounts(qc.getQueryData<LibraryManga[]>(['library']) ?? []));
+      return M.updateLibrary();
+    },
     onSuccess: () => {
       toast('Checking your library for new chapters…');
       qc.invalidateQueries({ queryKey: ['updater'] });
@@ -131,7 +145,11 @@ export default function LibraryPage() {
     if (running) setWasRunning(true);
     else if (wasRunning) {
       setWasRunning(false);
-      qc.invalidateQueries({ queryKey: ['library'] });
+      qc.invalidateQueries({ queryKey: ['library'] }).then(() => {
+        const data = qc.getQueryData<LibraryManga[]>(['library']);
+        const grew = data ? recordNewChapters(chapterCounts(data)) : 0;
+        if (grew) toast(`${grew} title${grew === 1 ? '' : 's'} got new chapters: highlighted below`);
+      });
       qc.invalidateQueries({ queryKey: ['updates'] });
     }
   }, [running, wasRunning, qc]);
@@ -171,13 +189,41 @@ export default function LibraryPage() {
       if (!titleHasWords(m.title, words)) return false;
       if (view.unreadOnly && m.unreadCount === 0) return false;
       if (view.downloadedOnly && m.downloadCount === 0) return false;
+      if (onlyFresh && freshIds.length > 0 && fresh[String(m.id)] === undefined) return false;
       return true;
     });
     const cmp = sortFn(view.sort);
     list = [...list].sort((a, b) => (view.desc ? -cmp(a, b) : cmp(a, b)));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mangas, cat, search, view]);
+  }, [mangas, cat, search, view, onlyFresh, fresh]);
+
+  // Bring the highlighted titles up to date: download their new chapters, paced so the sources do not ban you.
+  async function downloadNew() {
+    let titles = 0;
+    let chapters = 0;
+    try {
+      for (const m of mangas.filter((x) => fresh[String(x.id)] !== undefined)) {
+        const all = await Q.chapters(m.id); // newest first
+        const shown = visibleChapters(all, settings.groups[String(m.id)]);
+        const ids = shown
+          .slice(0, fresh[String(m.id)])
+          .filter((c) => !c.isDownloaded)
+          .map((c) => c.id);
+        if (!ids.length) continue;
+        startPacedJob({ title: m.title, mangaId: m.id, ids });
+        titles++;
+        chapters += ids.length;
+      }
+      toast(
+        titles
+          ? `Paced download started: ${chapters} new chapter${chapters === 1 ? '' : 's'} in ${titles} title${titles === 1 ? '' : 's'}. Follow it on the Downloads page.`
+          : 'The new chapters are already downloaded',
+      );
+    } catch (e) {
+      errorToast(e);
+    }
+  }
 
   const continueReading = useMemo(() => {
     if (cat !== 'all' || search || selecting) return [];
@@ -313,6 +359,31 @@ export default function LibraryPage() {
 
       {tabs.length > 1 && <Tabs value={String(cat)} onChange={(v) => setCat(v === 'all' ? 'all' : Number(v))} items={tabs} />}
 
+      {freshIds.length > 0 && !selecting && (
+        <div className="fresh-bar">
+          <span>
+            <b>{freshIds.length}</b> title{freshIds.length === 1 ? '' : 's'} with new chapters since your last check
+          </span>
+          <div className="row gap wrap">
+            <button className={`btn ghost ${onlyFresh ? 'on' : ''}`} onClick={() => setOnlyFresh(!onlyFresh)}>
+              Show only these
+            </button>
+            <button className="btn" onClick={downloadNew} title="Download each title's new chapters, one at a time with a pause between">
+              Download new chapters
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => {
+                dismissAllFresh();
+                setOnlyFresh(false);
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {selecting && (
         <div className="bulkbar">
           <span>{selected.size} selected</span>
@@ -431,6 +502,7 @@ export default function LibraryPage() {
               unread={settings.showBadges ? m.unreadCount : 0}
               downloaded={settings.showBadges ? m.downloadCount : 0}
               selected={selected.has(m.id)}
+              fresh={fresh[String(m.id)]}
               onClick={
                 selecting
                   ? (e) => {

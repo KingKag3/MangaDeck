@@ -1818,3 +1818,36 @@ input[type='range'] {
 .error-text {
   color: var(--danger);
 }
+
+/* ---------- Titles with new chapters (after "Check for updates") ---------- */
+
+.card.fresh .card-art {
+  box-shadow: 0 0 0 2px var(--ok), 0 0 24px color-mix(in srgb, var(--ok) 50%, transparent);
+  animation: fresh-pulse 2.4s ease-in-out infinite;
+}
+@keyframes fresh-pulse {
+  50% {
+    box-shadow: 0 0 0 2px var(--ok), 0 0 8px color-mix(in srgb, var(--ok) 25%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.fresh .card-art {
+    animation: none;
+  }
+}
+.badge.fresh {
+  background: var(--ok);
+  color: #04200f;
+}
+.fresh-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  background: color-mix(in srgb, var(--ok) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line));
+  border-radius: var(--radius);
+}

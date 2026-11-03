@@ -19,6 +19,7 @@ export function MangaCard({
   inLibrary,
   subtitle,
   selected,
+  fresh,
   onClick,
 }: {
   id: number;
@@ -29,13 +30,21 @@ export function MangaCard({
   inLibrary?: boolean;
   subtitle?: string;
   selected?: boolean;
+  /** Chapters gained in the last update check: highlights the card. */
+  fresh?: number;
   onClick?: (e: React.MouseEvent) => void;
 }) {
   return (
-    <Link to={`/manga/${id}`} className={`card ${selected ? 'selected' : ''}`} onClick={onClick} title={title}>
+    <Link
+      to={`/manga/${id}`}
+      className={`card ${selected ? 'selected' : ''} ${fresh ? 'fresh' : ''}`}
+      onClick={onClick}
+      title={fresh ? `${title} · ${fresh} new chapter${fresh === 1 ? '' : 's'}` : title}
+    >
       <div className="card-art">
         <Cover path={thumbnailUrl} alt={title} />
         <div className="badges">
+          {!!fresh && <span className="badge fresh">+{fresh} new</span>}
           {!!unread && unread > 0 && <span className="badge unread">{unread}</span>}
           {!!downloaded && downloaded > 0 && <span className="badge dl">{downloaded}</span>}
           {inLibrary && <span className="badge lib">In library</span>}

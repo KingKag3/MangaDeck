@@ -186,3 +186,36 @@ export async function queueAndWait(
   }
   return failed;
 }
+
+/* ---------- Saving several files into one folder (Chrome / Edge) ---------- */
+
+interface FileHandleLike {
+  createWritable(): Promise<{ write(d: Uint8Array): Promise<void>; close(): Promise<void>; abort(): Promise<void> }>;
+  getFile(): Promise<{ size: number }>;
+}
+
+export interface FolderHandle {
+  getFileHandle(name: string, o?: { create?: boolean }): Promise<FileHandleLike>;
+  removeEntry(name: string): Promise<void>;
+}
+
+export const canPickFolder = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
+/** Ask which folder to save into. Must be called from a click. Resolves null if the user cancels. */
+export async function pickFolder(): Promise<FolderHandle | null> {
+  try {
+    return await (window as unknown as { showDirectoryPicker(o: unknown): Promise<FolderHandle> }).showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
+    throw e;
+  }
+}
+
+/** Size of a file in the folder, 0 when it is missing. */
+export async function fileSizeIn(dir: FolderHandle, name: string): Promise<number> {
+  try {
+    return (await (await dir.getFileHandle(name)).getFile()).size;
+  } catch {
+    return 0;
+  }
+}

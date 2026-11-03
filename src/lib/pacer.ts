@@ -64,7 +64,7 @@ export function formatDuration(ms: number): string {
 
 /* ---------- Downloading one chapter ---------- */
 
-const sleep = (ms: number, signal?: AbortSignal) =>
+export const sleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason);
     const t = setTimeout(resolve, ms);
