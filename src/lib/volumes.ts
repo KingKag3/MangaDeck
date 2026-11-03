@@ -6,6 +6,11 @@ export interface VolumeRange {
   volume: number;
   first: number;
   last: number;
+  /** Release date (YYYY-MM-DD), English edition when listed. */
+  released?: string;
+  isbn?: string;
+  /** Chapter titles by chapter number. */
+  titles?: Record<number, string>;
 }
 
 /** Where a volume map came from, saved per manga. */
@@ -65,6 +70,41 @@ function findTemplates(text: string, name: string): string[] {
   return out;
 }
 
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** Drop <ref>…</ref>, templates and link markup from a wikitext value. */
+function plain(s: string): string {
+  return s
+    .replace(/<ref[^>]*\/>/gi, '')
+    .replace(/<ref[\s\S]*?<\/ref>/gi, '')
+    .replace(/\{\{[\s\S]*?\}\}/g, '')
+    .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, '$1')
+    .replace(/'{2,}/g, '')
+    .trim();
+}
+
+/** "October 11, 2022" (or "11 October 2022") to "2022-10-11". */
+export function parseWikiDate(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const t = plain(raw).toLowerCase();
+  const mdy = /([a-z]+)\s+(\d{1,2}),?\s+(\d{4})/.exec(t);
+  const dmy = /(\d{1,2})\s+([a-z]+),?\s+(\d{4})/.exec(t);
+  const parts: string[] = mdy ? [mdy[1], mdy[2], mdy[3]] : dmy ? [dmy[2], dmy[1], dmy[3]] : [];
+  const [mon, day, year] = parts;
+  const m = mon ? MONTHS.indexOf(mon) : -1;
+  if (m < 0 || !day || !year) return undefined;
+  return `${year}-${String(m + 1).padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+/** Chapter title from a list item: the English title of {{Nihongo|"Title"|…}}, or the plain text. */
+function chapterTitle(item: string): string | undefined {
+  const t = item.trim();
+  const nihongo = /^\{\{\s*Nihongo\s*\|([\s\S]*)\}\}$/i.exec(t);
+  const raw = nihongo ? splitTop(nihongo[1])[0] : t;
+  const title = plain(raw).replace(/^["“”'‘’]+|["“”'‘’]+$/g, '').trim();
+  return title || undefined;
+}
+
 /**
  * Read the "Graphic novel list" volume tables used on Wikipedia chapter lists.
  * Each volume holds one or more `{{Numbered list|start = N| item | item }}` blocks, which give its chapters.
@@ -83,11 +123,17 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
 
     let first = Infinity;
     let last = -Infinity;
+    const titles: Record<number, string> = {};
     for (const [key, value] of params) {
       if (!/^chapterlist(col\d+)?$/.test(key)) continue;
       const lists = findTemplates(value, '(?:Numbered list|nlist|Ordered list)');
       if (lists.length === 0) {
-        const n = value.split('\n').filter((l) => /^\s*#(?![#*:])/.test(l)).length;
+        const lines = value.split('\n').filter((l) => /^\s*#(?![#*:])/.test(l));
+        const n = lines.length;
+        lines.forEach((l, i) => {
+          const t = chapterTitle(l.replace(/^\s*#/, ''));
+          if (t) titles[next + i] = t;
+        });
         if (n > 0) {
           first = Math.min(first, next);
           last = Math.max(last, next + n - 1);
@@ -97,20 +143,37 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
       for (const list of lists) {
         let start: number | null = null;
         let count = 0;
+        const items: string[] = [];
         for (const p of splitTop(list).slice(1)) {
           const s = /^\s*start\s*=\s*(\d+)\s*$/i.exec(p);
           if (s) start = parseInt(s[1], 10);
           else if (/^\s*\w+\s*=/.test(p) && !p.includes('{{')) continue; // other named option
-          else if (p.trim()) count++;
+          else if (p.trim()) {
+            count++;
+            items.push(p);
+          }
         }
         if (count === 0) continue;
         const from = start ?? next;
+        items.forEach((it, i) => {
+          const t = chapterTitle(it);
+          if (t) titles[from + i] = t;
+        });
         first = Math.min(first, from);
         last = Math.max(last, from + count - 1);
       }
     }
     if (last >= first && Number.isFinite(first)) {
-      ranges.push({ volume, first, last });
+      const released = parseWikiDate(params.get('licensedreldate')) ?? parseWikiDate(params.get('originalreldate'));
+      const isbn = plain(params.get('licensedisbn') ?? params.get('originalisbn') ?? '') || undefined;
+      ranges.push({
+        volume,
+        first,
+        last,
+        ...(released ? { released } : {}),
+        ...(isbn ? { isbn } : {}),
+        ...(Object.keys(titles).length ? { titles } : {}),
+      });
       next = last + 1;
     }
   }

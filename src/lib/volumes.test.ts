@@ -40,9 +40,29 @@ function ch(chapterNumber: number, name = `Chapter ${chapterNumber}`, isRead = f
 describe('parseVolumeRanges', () => {
   it('reads chapter ranges per volume, including extra columns', () => {
     expect(parseVolumeRanges(WIKI)).toEqual([
-      { volume: 1, first: 1, last: 5 },
-      { volume: 2, first: 6, last: 7 },
+      {
+        volume: 1,
+        first: 1,
+        last: 5,
+        released: '2021-08-04',
+        titles: { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five' },
+      },
+      { volume: 2, first: 6, last: 7, titles: { 6: 'Six', 7: 'Seven' } },
     ]);
+  });
+
+  it('prefers the licensed release date and reads the ISBN', () => {
+    const text = `{{Graphic novel list
+| VolumeNumber = 1
+| OriginalRelDate = August 4, 2021
+| LicensedRelDate = October 11, 2022<ref name="x">{{Cite web|title=a}}</ref>
+| LicensedISBN = 978-1-9747-3463-4
+| ChapterList =
+{{Numbered list|start = 1
+| "A"
+}}
+}}`;
+    expect(parseVolumeRanges(text)[0]).toMatchObject({ released: '2022-10-11', isbn: '978-1-9747-3463-4' });
   });
 
   it('ignores the header template and pages without volumes', () => {
@@ -63,8 +83,8 @@ describe('parseVolumeRanges', () => {
 # three
 }}`;
     expect(parseVolumeRanges(text)).toEqual([
-      { volume: 1, first: 1, last: 2 },
-      { volume: 2, first: 3, last: 3 },
+      { volume: 1, first: 1, last: 2, titles: { 1: 'one', 2: 'two' } },
+      { volume: 2, first: 3, last: 3, titles: { 3: 'three' } },
     ]);
   });
 });

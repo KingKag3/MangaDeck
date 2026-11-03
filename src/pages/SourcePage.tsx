@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { M, Q } from '../api/queries';
 import { MangaCard } from '../components/Cover';
@@ -15,8 +15,10 @@ export default function SourcePage() {
   const source = sources.data?.find((s) => s.id === sourceId);
 
   const [mode, setMode] = useState<Mode>('POPULAR');
-  const [input, setInput] = useState('');
-  const [query, setQuery] = useState('');
+  const [params] = useSearchParams();
+  const start = params.get('q') ?? ''; // e.g. a link from a recommendation
+  const [input, setInput] = useState(start);
+  const [query, setQuery] = useState(start.trim());
 
   // Debounce the search box.
   useEffect(() => {

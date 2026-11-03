@@ -30,12 +30,29 @@ export function safeFileName(s: string): string {
   return s.replace(/[\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/** What goes into ComicInfo.xml besides the page count. */
+export interface PackMeta {
+  author?: string | null;
+  artist?: string | null;
+  genre?: string[];
+  summary?: string | null;
+  web?: string | null;
+  publisher?: string | null;
+  /** YYYY-MM-DD */
+  released?: string;
+  isbn?: string;
+  totalVolumes?: number;
+  /** Chapter titles by chapter number. */
+  titles?: Record<number, string>;
+}
+
 export interface PackOptions {
   series: string;
   /** Chapters in reading order. `volume` is null for chapters outside every volume. */
   items: { chapter: Chapter; volume: number | null }[];
   /** Set for a single-volume file (goes into ComicInfo.xml). */
   volume?: number;
+  meta?: PackMeta;
   /** Receives bytes as they are produced (e.g. a file on disk) instead of building the archive in memory. */
   sink?: (part: Uint8Array) => Promise<void> | void;
   onProgress?: (p: ExportProgress) => void;
@@ -68,16 +85,45 @@ export async function buildCbz(o: PackOptions): Promise<{ blob: Blob | null; fil
     o.onProgress?.({ chapter: ++done, chapters: o.items.length });
   }
 
-  const title = o.volume !== undefined ? `${o.series} Vol. ${o.volume}` : o.series;
-  const info =
-    `<?xml version="1.0" encoding="utf-8"?>\n<ComicInfo>\n  <Series>${xml(o.series)}</Series>\n` +
-    (o.volume !== undefined ? `  <Volume>${o.volume}</Volume>\n` : '') +
-    `  <Title>${xml(title)}</Title>\n  <PageCount>${pages}</PageCount>\n` +
-    `  <Manga>YesAndRightToLeft</Manga>\n</ComicInfo>\n`;
-  await zip.add('ComicInfo.xml', new TextEncoder().encode(info));
+  await zip.add('ComicInfo.xml', new TextEncoder().encode(comicInfo(o, pages)));
 
   const name = o.volume !== undefined ? `${safeFileName(o.series)} - Vol. ${String(o.volume).padStart(2, '0')}` : `${safeFileName(o.series)} - Complete`;
   return { blob: await zip.finish(), fileName: `${name}.cbz`, pages };
+}
+
+/** ComicInfo.xml (the schema Komga, Kavita, Calibre and most comic readers read). */
+export function comicInfo(o: Pick<PackOptions, 'series' | 'volume' | 'items' | 'meta'>, pages: number): string {
+  const m = o.meta ?? {};
+  const tags: [string, string | number | undefined | null][] = [];
+  const title = o.volume !== undefined ? `${o.series} Vol. ${o.volume}` : o.series;
+  tags.push(['Title', title], ['Series', o.series]);
+  if (o.volume !== undefined) tags.push(['Number', o.volume], ['Volume', o.volume]);
+  if (m.totalVolumes) tags.push(['Count', m.totalVolumes]);
+  tags.push(['Summary', m.summary?.replace(/\*\*(.+?)\*\*/g, '$1').trim()]);
+  if (m.released) {
+    const [y, mo, d] = m.released.split('-');
+    tags.push(['Year', Number(y)], ['Month', Number(mo)], ['Day', Number(d)]);
+  }
+  tags.push(['Writer', m.author], ['Penciller', m.artist && m.artist !== m.author ? m.artist : undefined]);
+  tags.push(['Publisher', m.publisher], ['Genre', m.genre?.join(', ')], ['Web', m.web]);
+  tags.push(['GTIN', m.isbn?.replace(/[^0-9Xx]/g, '')], ['PageCount', pages], ['LanguageISO', 'en'], ['Manga', 'YesAndRightToLeft']);
+  const chapters = o.items
+    .filter((i) => i.chapter.chapterNumber >= 0)
+    .map((i) => {
+      const n = i.chapter.chapterNumber;
+      const t = m.titles?.[Math.floor(n)];
+      return t ? `Ch. ${n}: ${t}` : `Ch. ${n}`;
+    });
+  if (chapters.length) tags.push(['Notes', `Chapters: ${chapters.join('; ')}. Packed by Mangadeck.`]);
+  const body = tags
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `  <${k}>${xml(String(v))}</${k}>`)
+    .join('\n');
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>\n` +
+    `<ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">\n` +
+    `${body}\n</ComicInfo>\n`
+  );
 }
 
 export function saveBlob(blob: Blob, fileName: string) {

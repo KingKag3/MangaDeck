@@ -51,6 +51,7 @@ export default function MangaPage() {
         : volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
     if (!items.length) return;
     const series = manga.data!.title;
+    const vr = ranges?.find((r) => r.volume === volume);
     const suggested = `${safeFileName(series)} - ${volume === 0 ? 'Complete' : `Vol. ${String(volume).padStart(2, '0')}`}.cbz`;
     if (volume === 0 && !canSaveToDisk && !confirm(`This browser can't save straight to disk, so all ${items.length} chapters are built in memory first. That can run out of memory. Continue?`)) return;
 
@@ -81,6 +82,16 @@ export default function MangaPage() {
         series,
         items,
         volume: volume === 0 ? undefined : volume,
+        meta: {
+          author: manga.data!.author,
+          artist: manga.data!.artist,
+          genre: manga.data!.genre,
+          summary: manga.data!.description,
+          web: manga.data!.realUrl,
+          totalVolumes: ranges?.length,
+          ...(volume === 0 ? {} : { released: vr?.released, isbn: vr?.isbn }),
+          titles: Object.assign({}, ...(ranges ?? []).filter((r) => volume === 0 || r.volume === volume).map((r) => r.titles ?? {})),
+        },
         sink: writable ? (part) => writable.write(part) : undefined,
         onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing' }),
         signal: abort.signal,

@@ -6,6 +6,7 @@ import { MangaCard } from '../components/Cover';
 import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
+import { fetchRecommendations, pickSeeds } from '../lib/recommend';
 
 type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated';
 
@@ -102,6 +103,16 @@ export default function LibraryPage() {
 
   const mangas = lib.data ?? [];
   const categories = cats.data ?? [];
+
+  const seeds = useMemo(() => pickSeeds(mangas), [mangas]);
+  const seedKey = seeds.map((m) => m.id).join(',');
+  const recs = useQuery({
+    queryKey: ['recommendations', seedKey],
+    queryFn: () => fetchRecommendations(seeds, mangas),
+    enabled: seeds.length > 0,
+    staleTime: 6 * 3600_000,
+    retry: false,
+  });
 
   // Manga with no category live in the "Default" category (id 0).
   const inCategory = (m: LibraryManga, id: number) =>
@@ -295,6 +306,33 @@ export default function LibraryPage() {
                 <Cover path={m.thumbnailUrl} alt={m.title} />
                 <span className="shelf-title">{m.title}</span>
                 <span className="muted small">{m.unreadCount} unread</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {cat === 'all' && !search && !selecting && recs.data && recs.data.length > 0 && (
+        <section className="shelf recs">
+          <h2>
+            Recommended for you <span className="muted small">· from AniList, based on what you read</span>
+          </h2>
+          <div className="shelf-row">
+            {recs.data.map((r) => (
+              <Link
+                key={r.id}
+                to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`}
+                className="shelf-item rec-item"
+                title={`${r.title}
+Because you read ${r.because.join(', ')}
+Search in your source`}
+              >
+                <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
+                <span className="shelf-title">{r.title}</span>
+                <span className="muted small">
+                  {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
+                  {r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
+                </span>
               </Link>
             ))}
           </div>
