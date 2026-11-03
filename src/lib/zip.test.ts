@@ -13,9 +13,9 @@ describe('crc32', () => {
 describe('ZipBuilder', () => {
   it('writes a readable central directory', async () => {
     const z = new ZipBuilder();
-    z.add('a.txt', enc('hello'));
-    z.add('dir/ü.txt', enc('world!'));
-    const buf = new DataView(await z.finish().arrayBuffer());
+    await z.add('a.txt', enc('hello'));
+    await z.add('dir/ü.txt', enc('world!'));
+    const buf = new DataView(await (await z.finish())!.arrayBuffer());
 
     const eocd = buf.byteLength - 22;
     expect(buf.getUint32(eocd, true)).toBe(0x06054b50);
@@ -29,5 +29,16 @@ describe('ZipBuilder', () => {
     const local = buf.getUint32(cd + 42, true);
     expect(buf.getUint32(local, true)).toBe(0x04034b50);
     expect(local).toBe(0);
+  });
+
+  it('streams to a sink instead of keeping bytes', async () => {
+    const chunks: Uint8Array[] = [];
+    const z = new ZipBuilder((p) => void chunks.push(p));
+    await z.add('a.txt', enc('hello'));
+    expect(await z.finish()).toBeNull();
+    const total = chunks.reduce((n, c) => n + c.length, 0);
+    const kept = new ZipBuilder();
+    await kept.add('a.txt', enc('hello'));
+    expect((await kept.finish())!.size).toBe(total);
   });
 });

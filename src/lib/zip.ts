@@ -1,5 +1,8 @@
 // Minimal ZIP writer (stored, no compression). Page images are already compressed, so storing them is the
 // right trade and keeps this dependency-free. Limits: no ZIP64 (under 4 GB, under 65535 files).
+//
+// With a `sink` the bytes are handed over as they are produced (e.g. to a file on disk) instead of being kept
+// in memory, so big archives do not need big memory.
 
 const TABLE = (() => {
   const t = new Uint32Array(256);
@@ -34,12 +37,17 @@ interface Entry {
 }
 
 export class ZipBuilder {
+  constructor(private sink?: (part: Uint8Array) => Promise<void> | void) {}
+
   private parts: Uint8Array[] = [];
   private entries: Entry[] = [];
   private offset = 0;
   private stamp = dosDateTime(new Date());
 
-  add(name: string, data: Uint8Array) {
+  async add(name: string, data: Uint8Array) {
+    if (this.entries.length >= 0xfffe || this.offset + data.length > 0xfffffff0) {
+      throw new Error('Too big for one .cbz (4 GB / 65,000 pages). Download by volume instead.');
+    }
     const nameBytes = new TextEncoder().encode(name);
     const entry: Entry = { name: nameBytes, crc: crc32(data), size: data.length, offset: this.offset, ...this.stamp };
     const header = new DataView(new ArrayBuffer(30));
@@ -54,13 +62,14 @@ export class ZipBuilder {
     header.setUint32(22, entry.size, true);
     header.setUint16(26, nameBytes.length, true);
     header.setUint16(28, 0, true);
-    this.push(new Uint8Array(header.buffer));
-    this.push(nameBytes);
-    this.push(data);
+    await this.push(new Uint8Array(header.buffer));
+    await this.push(nameBytes);
+    await this.push(data);
     this.entries.push(entry);
   }
 
-  finish(): Blob {
+  /** Writes the central directory. Returns the archive, or null when a sink took the bytes. */
+  async finish(): Promise<Blob | null> {
     const cdStart = this.offset;
     for (const e of this.entries) {
       const h = new DataView(new ArrayBuffer(46));
@@ -76,8 +85,8 @@ export class ZipBuilder {
       h.setUint32(24, e.size, true);
       h.setUint16(28, e.name.length, true);
       h.setUint32(42, e.offset, true);
-      this.push(new Uint8Array(h.buffer));
-      this.push(e.name);
+      await this.push(new Uint8Array(h.buffer));
+      await this.push(e.name);
     }
     const cdSize = this.offset - cdStart;
     const end = new DataView(new ArrayBuffer(22));
@@ -86,12 +95,14 @@ export class ZipBuilder {
     end.setUint16(10, this.entries.length, true);
     end.setUint32(12, cdSize, true);
     end.setUint32(16, cdStart, true);
-    this.push(new Uint8Array(end.buffer));
+    await this.push(new Uint8Array(end.buffer));
+    if (this.sink) return null;
     return new Blob(this.parts as BlobPart[], { type: 'application/vnd.comicbook+zip' });
   }
 
-  private push(part: Uint8Array) {
-    this.parts.push(part);
+  private async push(part: Uint8Array) {
     this.offset += part.length;
+    if (this.sink) await this.sink(part);
+    else this.parts.push(part);
   }
 }

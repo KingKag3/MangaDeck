@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, summarizeVolumes, volumeChapters, volumeOf } from './volumes';
+import { parseVolumeRanges, summarizeVolumes, seriesChapters, volumeChapters, volumeOf } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -115,5 +115,22 @@ describe('volumeChapters', () => {
     const list = [g(3, 'A', 1), g(3, 'B', 2), g(2, 'B', 3), g(1, 'B', 4), g(9, 'B', 5)];
     // B has 4 chapters, A has 1, so B wins; chapter 9 is outside the volume.
     expect(volumeChapters(list, ranges, 1).map((c) => c.id)).toEqual([4, 3, 2]);
+  });
+});
+
+describe('seriesChapters', () => {
+  it('orders by volume then number, one copy each, unassigned last', () => {
+    const ranges = [
+      { volume: 1, first: 1, last: 2 },
+      { volume: 2, first: 3, last: 3 },
+    ];
+    const mk = (n: number, scanlator: string, id: number) => ({ ...ch(n), id, scanlator }) as Chapter;
+    const list = [mk(9, 'A', 1), mk(3, 'A', 2), mk(2, 'A', 3), mk(2, 'B', 4), mk(1, 'A', 5), mk(1, 'B', 6)];
+    expect(seriesChapters(list, ranges).map((i) => [i.chapter.id, i.volume])).toEqual([
+      [5, 1],
+      [3, 1],
+      [2, 2],
+      [1, null],
+    ]);
   });
 });

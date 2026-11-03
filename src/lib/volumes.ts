@@ -230,3 +230,31 @@ export function volumeChapters(all: Chapter[], ranges: VolumeRange[] | undefined
     return a.chapterNumber >= 0 ? a.chapterNumber - b.chapterNumber : a.sourceOrder - b.sourceOrder;
   });
 }
+
+export interface PackItem {
+  chapter: Chapter;
+  volume: number | null;
+}
+
+/**
+ * Every chapter, one copy per chapter number (from the group with the most chapters), oldest first,
+ * each tagged with its volume. Chapters outside every volume get volume null and sort last.
+ */
+export function seriesChapters(all: Chapter[], ranges: VolumeRange[] | undefined): PackItem[] {
+  const rank = new Map(listGroups(all).map((g, i) => [g.name, i]));
+  const rankOf = (c: Chapter) => rank.get(groupOf(c)) ?? 0;
+  const best = new Map<string, Chapter>();
+  for (const c of all) {
+    const key = c.chapterNumber >= 0 ? `n${c.chapterNumber}` : `id${c.id}`;
+    const have = best.get(key);
+    if (!have || rankOf(c) < rankOf(have)) best.set(key, c);
+  }
+  const items = [...best.values()].map((chapter) => ({ chapter, volume: volumeOf(chapter, ranges) }));
+  const v = (i: PackItem) => i.volume ?? Infinity;
+  return items.sort((a, b) => {
+    if (v(a) !== v(b)) return v(a) < v(b) ? -1 : 1;
+    const [x, y] = [a.chapter, b.chapter];
+    if ((x.chapterNumber >= 0) !== (y.chapterNumber >= 0)) return x.chapterNumber >= 0 ? -1 : 1;
+    return x.chapterNumber >= 0 ? x.chapterNumber - y.chapterNumber : x.sourceOrder - y.sourceOrder;
+  });
+}

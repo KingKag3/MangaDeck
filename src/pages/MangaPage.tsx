@@ -7,8 +7,8 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { lookupVolumes, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
-import { buildVolumeCbz, saveBlob } from '../lib/export';
+import { lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
+import { buildCbz, canSaveToDisk, pickSaveFile, safeFileName, saveBlob } from '../lib/export';
 import {
   effectivePrefs,
   setGroupPref,
@@ -38,21 +38,54 @@ export default function MangaPage() {
   const [allTags, setAllTags] = useState(false);
   const [volFilter, setVolFilter] = useState<number | null>(null);
 
+  // volume: the volume being packed, or 0 for the whole series
   const [packing, setPacking] = useState<{ volume: number; done: number; total: number } | null>(null);
+  const packAbort = useRef<AbortController | null>(null);
 
-  async function packVolume(volume: number) {
-    const list = volumeChapters(everything, settings.volumes[String(id)]?.ranges, volume);
-    if (!list.length || packing) return;
-    setPacking({ volume, done: 0, total: list.length });
+  async function pack(volume: number) {
+    if (packing) return;
+    const ranges = settings.volumes[String(id)]?.ranges;
+    const items =
+      volume === 0
+        ? seriesChapters(everything, ranges)
+        : volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
+    if (!items.length) return;
+    const series = manga.data!.title;
+    const suggested = `${safeFileName(series)} - ${volume === 0 ? 'Complete' : `Vol. ${String(volume).padStart(2, '0')}`}.cbz`;
+    if (volume === 0 && !canSaveToDisk && !confirm(`This browser can't save straight to disk, so all ${items.length} chapters are built in memory first. That can run out of memory. Continue?`)) return;
+
+    // The file picker has to open straight from the click, before any waiting.
+    let handle: Awaited<ReturnType<typeof pickSaveFile>> = null;
+    if (canSaveToDisk) {
+      try {
+        handle = await pickSaveFile(suggested);
+      } catch (e) {
+        return errorToast(e);
+      }
+      if (!handle) return;
+    }
+    const writable = handle ? await handle.createWritable() : null;
+    const abort = new AbortController();
+    packAbort.current = abort;
+    setPacking({ volume, done: 0, total: items.length });
     try {
-      const { blob, fileName, pages } = await buildVolumeCbz(manga.data!.title, volume, list, (p) =>
-        setPacking({ volume, done: p.chapter, total: p.chapters }),
-      );
-      saveBlob(blob, fileName);
-      toast(`Saved ${fileName} (${list.length} chapters, ${pages} pages)`);
+      const { blob, fileName, pages } = await buildCbz({
+        series,
+        items,
+        volume: volume === 0 ? undefined : volume,
+        sink: writable ? (part) => writable.write(part) : undefined,
+        onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters }),
+        signal: abort.signal,
+      });
+      if (writable) await writable.close();
+      else if (blob) saveBlob(blob, fileName);
+      toast(`Saved ${writable ? suggested : fileName} (${items.length} chapters, ${pages} pages)`);
     } catch (e) {
-      errorToast(e);
+      if (writable) await writable.abort().catch(() => undefined);
+      if (abort.signal.aborted) toast('Cancelled');
+      else errorToast(e);
     } finally {
+      packAbort.current = null;
       setPacking(null);
     }
   }
@@ -351,6 +384,19 @@ export default function MangaPage() {
                 {findVolumes.isPending ? 'Looking up…' : 'Find volumes'}
               </button>
             )}
+            {packing ? (
+              <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
+                {packing.volume === 0 ? 'Packing' : `Vol. ${packing.volume}`} {packing.done}/{packing.total} · Cancel
+              </button>
+            ) : (
+              <button
+                className="btn ghost"
+                onClick={() => pack(0)}
+                title="Download every chapter as one .cbz (one copy per chapter, ordered by volume when known)"
+              >
+                ⬇ All as .cbz
+              </button>
+            )}
             <button className="btn ghost" onClick={() => setAsc(!asc)}>
               {asc ? '↑ Oldest first' : '↓ Newest first'}
             </button>
@@ -499,7 +545,7 @@ export default function MangaPage() {
                           <button
                             className="link-btn"
                             disabled={!!packing}
-                            onClick={() => packVolume(vol)}
+                            onClick={() => pack(vol)}
                             title="Download this volume as one .cbz comic file"
                           >
                             {packing?.volume === vol ? `Packing ${packing.done}/${packing.total}…` : '⬇ Download .cbz'}
