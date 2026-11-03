@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { GroupPref } from './groups';
+import type { VolumeInfo } from './volumes';
 
 export type ReaderMode = 'paged' | 'webtoon';
 export type Direction = 'ltr' | 'rtl';
@@ -18,6 +19,7 @@ export interface Settings extends ReaderPrefs {
   showBadges: boolean;
   perManga: Record<string, Partial<ReaderPrefs>>;
   groups: Record<string, GroupPref>; // chosen scanlation group per manga
+  volumes: Record<string, VolumeInfo>; // official volume map found for a manga
 }
 
 const KEY = 'mangadeck.settings';
@@ -32,6 +34,7 @@ const defaults: Settings = {
   showBadges: true,
   perManga: {},
   groups: {},
+  volumes: {},
 };
 
 function load(): Settings {
@@ -77,6 +80,13 @@ export function setGroupPref(mangaId: number, pref: GroupPref | null) {
   if (pref === null || !pref.group) delete groups[String(mangaId)];
   else groups[String(mangaId)] = pref;
   updateSettings({ groups });
+}
+
+export function setVolumeInfo(mangaId: number, info: VolumeInfo | null) {
+  const volumes = { ...state.volumes };
+  if (info === null) delete volumes[String(mangaId)];
+  else volumes[String(mangaId)] = info;
+  updateSettings({ volumes });
 }
 
 export function useSettings(): Settings {

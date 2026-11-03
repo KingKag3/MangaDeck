@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type Chapter } from '../api/queries';
@@ -7,9 +7,11 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
+import { lookupVolumes, summarizeVolumes, volumeOf } from '../lib/volumes';
 import {
   effectivePrefs,
   setGroupPref,
+  setVolumeInfo,
   updateMangaPrefs,
   useSettings,
   type Direction,
@@ -33,6 +35,18 @@ export default function MangaPage() {
   const backdrop = useImage(manga.data?.thumbnailUrl);
   const [expanded, setExpanded] = useState(false);
   const [allTags, setAllTags] = useState(false);
+  const [volFilter, setVolFilter] = useState<number | null>(null);
+
+  const findVolumes = useMutation({
+    mutationFn: () => lookupVolumes(manga.data!.title),
+    onSuccess: (info) => {
+      if (info) {
+        setVolumeInfo(id, info);
+        toast(`Found ${info.ranges.length} volumes on Wikipedia`);
+      } else toast('No volume list found on Wikipedia for this title', 'error');
+    },
+    onError: errorToast,
+  });
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -120,13 +134,21 @@ export default function MangaPage() {
   // `all` = the chapters of the chosen group (or everything when no group is chosen)
   const all = useMemo(() => visibleChapters(everything, groupPref), [everything, groupPref]);
 
+  const volumeInfo = settings.volumes[String(id)];
+  const volumes = useMemo(() => summarizeVolumes(all, volumeInfo?.ranges), [all, volumeInfo]);
+  const activeVolume = volFilter !== null && volumes.some((v) => v.volume === volFilter) ? volFilter : null;
+
   const shown = useMemo(() => {
     let list = all.filter(
-      (c) => (!unreadOnly || !c.isRead) && (!downloadedOnly || c.isDownloaded) && (!bookmarkedOnly || c.isBookmarked),
+      (c) =>
+        (!unreadOnly || !c.isRead) &&
+        (!downloadedOnly || c.isDownloaded) &&
+        (!bookmarkedOnly || c.isBookmarked) &&
+        (activeVolume === null || volumeOf(c, volumeInfo?.ranges) === activeVolume),
     );
     if (asc) list = [...list].reverse();
     return list;
-  }, [all, asc, unreadOnly, downloadedOnly, bookmarkedOnly]);
+  }, [all, asc, unreadOnly, downloadedOnly, bookmarkedOnly, activeVolume, volumeInfo]);
 
   // Which chapter does the big "Continue" button open?
   const target: { chapter: Chapter; label: string } | null = useMemo(() => {
@@ -299,6 +321,16 @@ export default function MangaPage() {
             <button className={`btn ghost ${bookmarkedOnly ? 'on' : ''}`} onClick={() => setBookmarkedOnly(!bookmarkedOnly)}>
               Bookmarked
             </button>
+            {!volumeInfo && (
+              <button
+                className="btn ghost"
+                onClick={() => findVolumes.mutate()}
+                disabled={findVolumes.isPending}
+                title="Look up which chapters belong to each official volume (Wikipedia)"
+              >
+                {findVolumes.isPending ? 'Looking up…' : 'Find volumes'}
+              </button>
+            )}
             <button className="btn ghost" onClick={() => setAsc(!asc)}>
               {asc ? '↑ Oldest first' : '↓ Newest first'}
             </button>
@@ -358,6 +390,42 @@ export default function MangaPage() {
           </div>
         )}
 
+        {volumes.length > 0 && (
+          <div className="volume-bar" role="group" aria-label="Official volumes">
+            <div className="volume-bar-head">
+              <span className="muted small">
+                Official volumes{volumeInfo ? ` · from Wikipedia (${volumeInfo.page})` : ' · from chapter names'}
+              </span>
+              {volumeInfo && (
+                <span className="row gap">
+                  <button className="link-btn" onClick={() => findVolumes.mutate()} disabled={findVolumes.isPending}>
+                    {findVolumes.isPending ? 'Refreshing…' : 'Refresh'}
+                  </button>
+                  <button className="link-btn" onClick={() => setVolumeInfo(id, null)}>
+                    Remove
+                  </button>
+                </span>
+              )}
+            </div>
+            <div className="volume-strip">
+              {volumes.map((v) => (
+                <button
+                  key={v.volume}
+                  className={`volume-chip vol-${v.volume % 2 ? 'a' : 'b'} ${activeVolume === v.volume ? 'on' : ''} ${v.unread === 0 ? 'done' : ''}`}
+                  onClick={() => setVolFilter(activeVolume === v.volume ? null : v.volume)}
+                  title={`${v.count} chapters · ${v.unread} unread`}
+                >
+                  <b>Vol. {v.volume}</b>
+                  <span>
+                    {Number.isFinite(v.first) ? `Ch. ${v.first}${v.last !== v.first ? `–${v.last}` : ''}` : `${v.count} ch.`}
+                  </span>
+                  <span className="vol-state">{v.unread === 0 ? '✓ read' : `${v.unread} unread`}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {selIds.length > 0 && (
           <div className="bulkbar sticky">
             <span>{selIds.length} selected</span>
@@ -388,8 +456,27 @@ export default function MangaPage() {
           <ul className="chapter-list">
             {shown.map((c, i) => {
               const started = !c.isRead && c.lastPageRead > 0;
+              const vol = volumes.length ? volumeOf(c, volumeInfo?.ranges) : null;
+              const newVolume = volumes.length > 0 && (i === 0 || volumeOf(shown[i - 1], volumeInfo?.ranges) !== vol);
+              const volClass = vol === null ? '' : vol % 2 ? 'vol-a' : 'vol-b';
               return (
-                <li key={c.id} className={`chapter ${c.isRead ? 'is-read' : ''} ${selected.has(c.id) ? 'selected' : ''}`}>
+                <Fragment key={c.id}>
+                  {newVolume && (
+                    <li className={`volume-divider ${volClass}`}>
+                      <span>{vol === null ? 'Not in a volume yet' : `Volume ${vol}`}</span>
+                      {vol !== null && (
+                        <button
+                          className="link-btn"
+                          onClick={() =>
+                            setSelected(new Set(shown.filter((x) => volumeOf(x, volumeInfo?.ranges) === vol).map((x) => x.id)))
+                          }
+                        >
+                          Select volume
+                        </button>
+                      )}
+                    </li>
+                  )}
+                <li className={`chapter ${volClass} ${c.isRead ? 'is-read' : ''} ${selected.has(c.id) ? 'selected' : ''}`}>
                   <input
                     type="checkbox"
                     className="chapter-check"
@@ -432,6 +519,7 @@ export default function MangaPage() {
                     </button>
                   </div>
                 </li>
+                </Fragment>
               );
             })}
           </ul>

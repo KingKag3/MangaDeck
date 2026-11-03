@@ -1213,3 +1213,115 @@ input[type='range'] {
     flex: 1;
   }
 }
+
+/* ---------- Official volumes ---------- */
+
+:root {
+  --vol-a: #e8b04a;
+  --vol-b: #6aa0ff;
+}
+.link-btn {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+.link-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.link-btn:disabled {
+  opacity: 0.5;
+}
+.volume-bar {
+  margin-bottom: 14px;
+}
+.volume-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.volume-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.volume-chip {
+  appearance: none;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 104px;
+  padding: 8px 12px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--vol-a);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.volume-chip.vol-b {
+  border-left-color: var(--vol-b);
+}
+.volume-chip span {
+  color: var(--muted);
+}
+.volume-chip:hover {
+  background: var(--surface-2);
+}
+.volume-chip.on {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+.volume-chip.done {
+  opacity: 0.6;
+}
+.volume-chip .vol-state {
+  font-size: 0.74rem;
+}
+.volume-divider {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vol-a);
+  background: color-mix(in srgb, var(--vol-a) 10%, var(--surface-2));
+  border-top: 1px solid var(--line);
+}
+.volume-divider.vol-b {
+  color: var(--vol-b);
+  background: color-mix(in srgb, var(--vol-b) 10%, var(--surface-2));
+}
+.volume-divider:not(.vol-a):not(.vol-b) {
+  color: var(--muted);
+  background: var(--surface-2);
+}
+.volume-divider:first-child {
+  border-top: 0;
+}
+.chapter.vol-a {
+  box-shadow: inset 3px 0 0 var(--vol-a);
+}
+.chapter.vol-b {
+  box-shadow: inset 3px 0 0 var(--vol-b);
+}
+
+.main {
+  overflow-x: clip; /* the blurred hero backdrop is scaled past the page edge */
+}
