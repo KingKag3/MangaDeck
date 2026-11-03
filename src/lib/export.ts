@@ -1,5 +1,5 @@
 import { fetchBlob, resolveUrl } from '../api/client';
-import { M, type Chapter } from '../api/queries';
+import { M, Q, type Chapter } from '../api/queries';
 import { ZipBuilder } from './zip';
 
 export interface ExportProgress {
@@ -108,6 +108,44 @@ export async function pickSaveFile(fileName: string): Promise<SaveHandle | null>
     });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return null;
+    throw e;
+  }
+}
+
+/* ---------- Use Suwayomi's own download queue ---------- */
+
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => (clearTimeout(t), reject(signal.reason)), { once: true });
+  });
+
+/**
+ * Queue chapters in Suwayomi's downloader and wait until they are on the server, so they show in the Downloads
+ * page and packing can read local copies. Chapters that keep failing are left to the source fetch afterwards.
+ * Cancelling removes whatever is still queued. Returns how many chapters failed.
+ */
+export async function queueAndWait(
+  ids: number[],
+  onProgress: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<number> {
+  if (!ids.length) return 0;
+  const mine = new Set(ids);
+  onProgress(0, ids.length);
+  await M.enqueueDownloads(ids);
+  await M.startDownloader(); // safe: the queue is not empty now
+  try {
+    for (;;) {
+      await sleep(2000, signal);
+      const { queue } = await Q.downloads();
+      const left = queue.filter((i) => mine.has(i.chapter.id));
+      onProgress(ids.length - left.length, ids.length);
+      if (left.length === 0) return 0;
+      if (left.every((i) => i.state === 'ERROR' && i.tries >= 3)) return left.length;
+    }
+  } catch (e) {
+    if (signal?.aborted) await M.dequeueDownloads(ids).catch(() => undefined);
     throw e;
   }
 }

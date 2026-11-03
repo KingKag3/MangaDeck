@@ -8,7 +8,7 @@ import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
 import { lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
-import { buildCbz, canSaveToDisk, pickSaveFile, safeFileName, saveBlob } from '../lib/export';
+import { buildCbz, canSaveToDisk, pickSaveFile, queueAndWait, safeFileName, saveBlob } from '../lib/export';
 import {
   effectivePrefs,
   setGroupPref,
@@ -39,7 +39,7 @@ export default function MangaPage() {
   const [volFilter, setVolFilter] = useState<number | null>(null);
 
   // volume: the volume being packed, or 0 for the whole series
-  const [packing, setPacking] = useState<{ volume: number; done: number; total: number } | null>(null);
+  const [packing, setPacking] = useState<{ volume: number; done: number; total: number; phase: 'downloading' | 'packing' } | null>(null);
   const packAbort = useRef<AbortController | null>(null);
 
   async function pack(volume: number) {
@@ -67,14 +67,22 @@ export default function MangaPage() {
     const writable = handle ? await handle.createWritable() : null;
     const abort = new AbortController();
     packAbort.current = abort;
-    setPacking({ volume, done: 0, total: items.length });
     try {
+      // First let Suwayomi download the chapters, so they show in Downloads and packing reads the local copies.
+      const missing = items.filter((i) => !i.chapter.isDownloaded).map((i) => i.chapter.id);
+      if (missing.length) {
+        setPacking({ volume, done: 0, total: missing.length, phase: 'downloading' });
+        const failed = await queueAndWait(missing, (done, total) => setPacking({ volume, done, total, phase: 'downloading' }), abort.signal);
+        refreshAll();
+        if (failed) toast(`${failed} chapter${failed === 1 ? '' : 's'} failed to download; fetching from the source instead`, 'error');
+      }
+      setPacking({ volume, done: 0, total: items.length, phase: 'packing' });
       const { blob, fileName, pages } = await buildCbz({
         series,
         items,
         volume: volume === 0 ? undefined : volume,
         sink: writable ? (part) => writable.write(part) : undefined,
-        onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters }),
+        onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing' }),
         signal: abort.signal,
       });
       if (writable) await writable.close();
@@ -386,7 +394,7 @@ export default function MangaPage() {
             )}
             {packing ? (
               <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
-                {packing.volume === 0 ? 'Packing' : `Vol. ${packing.volume}`} {packing.done}/{packing.total} · Cancel
+                {packing.phase === 'downloading' ? 'Downloading' : 'Packing'} {packing.volume === 0 ? '' : `Vol. ${packing.volume} `}{packing.done}/{packing.total} · Cancel
               </button>
             ) : (
               <button
@@ -548,7 +556,7 @@ export default function MangaPage() {
                             onClick={() => pack(vol)}
                             title="Download this volume as one .cbz comic file"
                           >
-                            {packing?.volume === vol ? `Packing ${packing.done}/${packing.total}…` : '⬇ Download .cbz'}
+                            {packing?.volume === vol ? `${packing.phase === 'downloading' ? 'Downloading' : 'Packing'} ${packing.done}/${packing.total}…` : '⬇ Download .cbz'}
                           </button>
                         </span>
                       )}
