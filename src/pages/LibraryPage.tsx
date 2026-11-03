@@ -6,6 +6,7 @@ import { MangaCard } from '../components/Cover';
 import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
+import { queryWords, titleHasWords } from '../lib/search';
 import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
 import RecDialog, { RecPeek } from '../components/RecDialog';
 
@@ -148,10 +149,10 @@ export default function LibraryPage() {
   }, [mangas, categories]);
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const words = queryWords(search);
     let list = mangas.filter((m) => {
       if (cat !== 'all' && !inCategory(m, cat)) return false;
-      if (q && !m.title.toLowerCase().includes(q)) return false;
+      if (!titleHasWords(m.title, words)) return false;
       if (view.unreadOnly && m.unreadCount === 0) return false;
       if (view.downloadedOnly && m.downloadCount === 0) return false;
       return true;

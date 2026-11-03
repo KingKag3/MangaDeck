@@ -5,6 +5,7 @@ import { M, Q } from '../api/queries';
 import { MangaCard } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Spinner, Tabs } from '../components/ui';
 import { useSettings } from '../lib/settings';
+import { queryWords, titleHasWords } from '../lib/search';
 
 type Mode = 'POPULAR' | 'LATEST' | 'SEARCH';
 
@@ -51,6 +52,19 @@ export default function SourcePage() {
     return out;
   }, [feed.data]);
 
+  // Sources search loosely ("hero" also brings back Horimiya). Keep the titles that contain the typed words,
+  // and keep loading pages until there are enough of them.
+  const [onlyMatches, setOnlyMatches] = useState(true);
+  const words = useMemo(() => queryWords(query), [query]);
+  const matching = useMemo(() => items.filter((m) => titleHasWords(m.title, words)), [items, words]);
+  const filtering = !!query && onlyMatches;
+  const pages = feed.data?.pages.length ?? 0;
+  useEffect(() => {
+    if (filtering && matching.length < 24 && feed.hasNextPage && !feed.isFetchingNextPage && pages < 8) feed.fetchNextPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtering, matching.length, feed.hasNextPage, feed.isFetchingNextPage, pages]);
+  const shown = !query ? items : filtering ? matching : [...matching, ...items.filter((m) => !matching.includes(m))];
+
   return (
     <div className="page">
       <PageHeader title={source?.displayName ?? 'Source'}>
@@ -79,10 +93,24 @@ export default function SourcePage() {
 
       {feed.isLoading && <Spinner label="Asking the source…" />}
       {feed.error && <ErrorBox error={feed.error} retry={() => feed.refetch()} />}
-      {!feed.isLoading && !feed.error && items.length === 0 && <Empty title="No results" />}
+      {query && !feed.isLoading && !feed.error && items.length > 0 && (
+        <div className="row gap wrap match-bar">
+          <span className="muted small">
+            {matching.length} title{matching.length === 1 ? '' : 's'} containing “{query}”
+            {feed.hasNextPage ? ' so far' : ''}
+          </span>
+          <label className="check">
+            <input type="checkbox" checked={onlyMatches} onChange={(e) => setOnlyMatches(e.target.checked)} />
+            <span>Only titles containing the word{words.length > 1 ? 's' : ''}</span>
+          </label>
+        </div>
+      )}
+      {!feed.isLoading && !feed.error && shown.length === 0 && (
+        <Empty title="No results" hint={filtering && items.length > 0 ? 'The source returned titles, but none contain your search. Untick the filter to see them.' : undefined} />
+      )}
 
       <div className="grid" style={{ ['--cw' as string]: `${settings.gridWidth}px` }}>
-        {items.map((m) => (
+        {shown.map((m) => (
           <MangaCard key={m.id} id={m.id} title={m.title} thumbnailUrl={m.thumbnailUrl} inLibrary={m.inLibrary} />
         ))}
       </div>

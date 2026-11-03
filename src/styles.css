@@ -1670,3 +1670,8 @@ input[type='range'] {
   overflow: hidden;
   white-space: pre-line;
 }
+
+.match-bar {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
