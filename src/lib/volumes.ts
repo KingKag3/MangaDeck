@@ -13,9 +13,14 @@ export interface VolumeRange {
   titles?: Record<number, string>;
 }
 
+/** Bump when the parser learns something new, so older saved lookups get refreshed. */
+export const PARSER_VERSION = 2;
+
 /** Where a volume map came from, saved per manga. */
 export interface VolumeInfo {
   source: 'wikipedia';
+  /** Parser version that produced `ranges` (missing on lookups saved before versions existed). */
+  v?: number;
   page: string;
   ranges: VolumeRange[];
 }
@@ -120,6 +125,8 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
     }
     const volume = parseInt((params.get('volumenumber') ?? '').trim(), 10);
     if (!Number.isFinite(volume)) continue;
+    // Volume numbers restarting means a new table (spin-offs, side stories): keep only the main series.
+    if (ranges.length > 0 && volume <= ranges[ranges.length - 1].volume) break;
 
     let first = Infinity;
     let last = -Infinity;
@@ -137,6 +144,17 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
         if (n > 0) {
           first = Math.min(first, next);
           last = Math.max(last, next + n - 1);
+        } else {
+          // Some pages just say "* Chapter: 18–26" (or "Chapters 18-26", or a single "Chapter 5").
+          const text = plain(value);
+          const range = /chapters?\s*:?\s*(\d+(?:\.\d+)?)\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?)/i.exec(text);
+          const single = /chapters?\s*:?\s*(\d+(?:\.\d+)?)/i.exec(text);
+          const lo = range ? parseFloat(range[1]) : single ? parseFloat(single[1]) : NaN;
+          const hi = range ? parseFloat(range[2]) : lo;
+          if (Number.isFinite(lo) && hi >= lo) {
+            first = Math.min(first, lo);
+            last = Math.max(last, hi);
+          }
         }
         continue;
       }
@@ -164,8 +182,8 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
       }
     }
     if (last >= first && Number.isFinite(first)) {
-      const released = parseWikiDate(params.get('licensedreldate')) ?? parseWikiDate(params.get('originalreldate'));
-      const isbn = plain(params.get('licensedisbn') ?? params.get('originalisbn') ?? '') || undefined;
+      const released = parseWikiDate(params.get('licensedreldate')) ?? parseWikiDate(params.get('originalreldate') ?? params.get('reldate'));
+      const isbn = plain(params.get('licensedisbn') ?? params.get('originalisbn') ?? params.get('isbn') ?? '') || undefined;
       ranges.push({
         volume,
         first,
@@ -210,7 +228,7 @@ export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
     const page = await wikitext(c);
     if (!page) continue;
     const ranges = parseVolumeRanges(page.text);
-    if (ranges.length) return { source: 'wikipedia', page: page.title, ranges };
+    if (ranges.length) return { source: 'wikipedia', v: PARSER_VERSION, page: page.title, ranges };
   }
   return null;
 }

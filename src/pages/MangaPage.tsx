@@ -7,7 +7,7 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
+import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
 import { buildCbz, canSaveToDisk, pickSaveFile, queueAndWait, safeFileName, saveBlob } from '../lib/export';
 import {
   effectivePrefs,
@@ -207,6 +207,15 @@ export default function MangaPage() {
   const all = useMemo(() => visibleChapters(everything, groupPref), [everything, groupPref]);
 
   const volumeInfo = settings.volumes[String(id)];
+
+  // A lookup saved by an older parser may be incomplete (e.g. only 2 of 16 volumes): quietly redo it once.
+  const redoneVolumes = useRef(false);
+  useEffect(() => {
+    if (!volumeInfo || (volumeInfo.v ?? 1) >= PARSER_VERSION || redoneVolumes.current || !manga.data) return;
+    redoneVolumes.current = true;
+    findVolumes.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [volumeInfo, manga.data]);
   const volumes = useMemo(() => summarizeVolumes(all, volumeInfo?.ranges), [all, volumeInfo]);
   const activeVolume = volFilter !== null && volumes.some((v) => v.volume === volFilter) ? volFilter : null;
 

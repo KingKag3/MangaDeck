@@ -23,7 +23,7 @@ export default function Layout() {
     <div className="shell">
       <nav className="nav" aria-label="Main">
         <div className="brand">
-          <span className="brand-mark" />
+          <img className="brand-logo" src="/logo.png" alt="Mangadeck" width="48" height="48" />
           <span className="brand-name">Mangadeck</span>
         </div>
         {NAV.map((n) => (

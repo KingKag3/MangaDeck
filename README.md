@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.png" alt="Mangadeck" width="180" />
+</p>
+
 # Mangadeck
 
 A faster, denser replacement UI for [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server).

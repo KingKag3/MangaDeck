@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type LibraryManga } from '../api/queries';
 import { MangaCard } from '../components/Cover';
 import { Cover } from '../components/Cover';
-import { Empty, ErrorBox, PageHeader, Spinner, Tabs, errorToast, toast } from '../components/ui';
+import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { fetchRecommendations, pickSeeds } from '../lib/recommend';
 
@@ -300,7 +300,7 @@ export default function LibraryPage() {
       {continueReading.length > 0 && (
         <section className="shelf">
           <h2>Continue reading</h2>
-          <div className="shelf-row">
+          <Shelf>
             {continueReading.map((m) => (
               <Link key={m.id} to={`/manga/${m.id}`} className="shelf-item" title={m.title}>
                 <Cover path={m.thumbnailUrl} alt={m.title} />
@@ -308,7 +308,7 @@ export default function LibraryPage() {
                 <span className="muted small">{m.unreadCount} unread</span>
               </Link>
             ))}
-          </div>
+          </Shelf>
         </section>
       )}
 
@@ -317,7 +317,7 @@ export default function LibraryPage() {
           <h2>
             Recommended for you <span className="muted small">· from AniList, based on what you read</span>
           </h2>
-          <div className="shelf-row">
+          <Shelf>
             {recs.data.map((r) => (
               <Link
                 key={r.id}
@@ -335,7 +335,7 @@ Search in your source`}
                 </span>
               </Link>
             ))}
-          </div>
+          </Shelf>
         </section>
       )}
 

@@ -89,6 +89,41 @@ describe('parseVolumeRanges', () => {
   });
 });
 
+describe('parseVolumeRanges, other page styles', () => {
+  const page = `{{Graphic novel list
+| VolumeNumber = 1
+| RelDate = July 4, 2020
+| ISBN = 978-4-08-882000-0
+| ChapterList =
+* Chapter: 1–6
+| Summary = x
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterList =
+* Chapters 7-12.5
+}}
+{{Graphic novel list
+| VolumeNumber = 3
+| ChapterList =
+* Chapter 13
+}}
+== Side story ==
+{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList =
+* Chapter: 1–3
+}}`;
+
+  it('reads "Chapter: a–b" bullets and ignores a second table that restarts at volume 1', () => {
+    expect(parseVolumeRanges(page)).toEqual([
+      { volume: 1, first: 1, last: 6, released: '2020-07-04', isbn: '978-4-08-882000-0' },
+      { volume: 2, first: 7, last: 12.5 },
+      { volume: 3, first: 13, last: 13 },
+    ]);
+  });
+});
+
 describe('volumeOf', () => {
   const ranges = [
     { volume: 1, first: 1, last: 5 },

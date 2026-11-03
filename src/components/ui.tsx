@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 /* ---------- Toasts ---------- */
 
@@ -88,6 +88,55 @@ export function PageHeader({ title, children }: { title: string; children?: Reac
       <h1>{title}</h1>
       <div className="row gap wrap">{children}</div>
     </header>
+  );
+}
+
+/** A horizontal row of items with left/right arrows (shown on hover) that scroll by almost a screenful. */
+export function Shelf({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [can, setCan] = useState({ left: false, right: false });
+
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCan({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [update, children]);
+
+  const go = (dir: -1 | 1) => ref.current?.scrollBy({ left: dir * ref.current.clientWidth * 0.85, behavior: 'smooth' });
+
+  return (
+    <div className="shelf-wrap">
+      {can.left && (
+        <button className="shelf-arrow left" aria-label="Scroll left" onClick={() => go(-1)}>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      <div className="shelf-row" ref={ref}>
+        {children}
+      </div>
+      {can.right && (
+        <button className="shelf-arrow right" aria-label="Scroll right" onClick={() => go(1)}>
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
