@@ -8,7 +8,19 @@ A faster, denser replacement UI for [Suwayomi-Server](https://github.com/Suwayom
 It keeps the Suwayomi server (and its whole Mihon/Tachiyomi extension ecosystem) and replaces only the
 interface, talking to the server's GraphQL API at `/api/graphql`.
 
-React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 3k lines.
+React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 7k lines.
+
+## Screenshots
+
+Manga covers are blanked out in these screenshots; in the app they show the real covers.
+
+| Library with recommendations | Manga page with official volumes |
+| --- | --- |
+| ![Library](docs/screenshots/library.jpg) | ![Manga page](docs/screenshots/manga-volumes.jpg) |
+
+| Find a title in your sources from the library | Paced bulk downloads |
+| --- | --- |
+| ![Search sources](docs/screenshots/search-sources.jpg) | ![Paced downloads](docs/screenshots/paced-downloads.jpg) |
 
 ## Run it
 
@@ -55,12 +67,12 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 
 | Area | Features |
 | --- | --- |
-| Library | Category tabs with counts, search, sort (title, unread, last read, date added, latest chapter) with direction, unread/downloaded filters, cover size slider, unread/download badges, "Continue reading" shelf, multi-select (add to category, remove), one-click "Check for updates" with progress |
-| Manga page | Scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, download all unread, per-manga reader settings |
+| Library | Category tabs with counts, search (matches words anywhere in a title), sort (title, unread, last read, date added, latest chapter) with direction, unread/downloaded filters, cover size slider, unread/download badges, "Continue reading" shelf, "Recommended for you" shelf (up to 30 titles from AniList based on what you read recently; hover for the synopsis, "i" for details, click to search for it in your source), **+ Sources** to also search the typed title in your English sources, multi-select (add to category, remove), one-click "Check for updates" with progress |
+| Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), **official volumes** (looked up from Wikipedia chapter lists, or read from "Vol. N" in chapter names: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
 | Reader | Paged (LTR/RTL) and webtoon modes, 4 fit modes, tap zones, swipe, keyboard, preloading, progress slider, resume position, auto mark-read, auto-download upcoming chapters, fullscreen |
 | Updates | New chapters grouped by day, reading history, one-tap download |
-| Downloads | Live queue with progress, start/pause, clear, remove |
-| Browse | Sources by language, popular/latest/search with load-more, extension install/update/uninstall, refresh repository |
+| Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections, `.cbz` exports) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel) |
+| Browse | English sources only (a setting shows other languages), popular/latest/search with load-more, search results filtered to titles that contain your words, extension install/update/uninstall, refresh repository |
 
 Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` chapters, `M` toggle menu, `F` fullscreen, `Esc` back.
 
@@ -69,17 +81,36 @@ Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` c
 ```
 src/api/client.ts     GraphQL client, auth, token refresh
 src/api/queries.ts    every query/mutation + types (single file, easy to extend)
-src/lib/settings.ts   persisted reader/library prefs (localStorage), per-manga overrides
+src/lib/settings.ts   persisted prefs (localStorage): reader, library, pacing, per-manga overrides, volume maps
 src/lib/useImage.ts   image loading with optional bearer auth + preloading
+src/lib/groups.ts     scanlation group filtering
+src/lib/volumes.ts    official volumes: Wikipedia lookup + parser, chapter-to-volume mapping
+src/lib/export.ts     build a .cbz (pages + ComicInfo.xml), save to disk or download
+src/lib/zip.ts        tiny dependency-free zip writer (stored, streams to a file)
+src/lib/pacer.ts      paced bulk downloads: timing, one-chapter-at-a-time runner, saved jobs
+src/lib/recommend.ts  AniList recommendations from your recent reads
+src/lib/search.ts     word matching for search (any order, ignores case and accents)
+src/lib/format.ts     dates (Suwayomi mixes seconds and milliseconds), description parsing
+src/components/*      shared UI: cards, shelves with arrows, source search results, paced job list
 src/pages/*           Library, Manga, Reader, Updates, Downloads, Browse, Source, Settings
 src/styles.css        the whole design, driven by CSS variables at the top
+public/               logo and icons (originals in branding/)
+docs/screenshots/     README screenshots
 ```
+
+Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and date helpers.
 
 ## Notes
 
 - The GraphQL shapes were taken from the official Suwayomi-WebUI source (current `master`). If a future server
   release renames a field, `src/api/queries.ts` is the only file to touch.
 - Download progress and library updates are polled (2–5 s) rather than using GraphQL subscriptions.
+- Two features talk to outside services straight from your browser: official volumes read Wikipedia
+  (`en.wikipedia.org`) and recommendations read AniList (`graphql.anilist.co`). They send only a manga title.
+  Nothing else leaves your network, and nothing breaks if they are unreachable.
+- Paced downloads wait in the browser, so keep a Mangadeck tab open while a long job runs (a hidden tab slows its
+  timers, which only makes the waits longer). The server has no download delay setting of its own.
+- `.cbz` is a plain zip, not a RAR, so it opens in any comic reader; real `.cbr` needs WinRAR's tool.
 - The stock WebUI keeps running inside Suwayomi; Mangadeck ignores it. Mangadeck is just another client of the
   same API, so you can use both side by side.
 

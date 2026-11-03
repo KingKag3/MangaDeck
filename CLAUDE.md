@@ -13,6 +13,7 @@ Settings live in `localStorage` (`mangadeck.settings`, server override in `manga
 - Docker (how Kamjohn runs it, on Windows): `start-mangadeck.bat` = `docker compose up -d --build`, then open
   http://localhost:8080. Mangadeck (nginx, port 8080) and `ghcr.io/suwayomi/tachidesk:stable` (port 4567) run together.
   Suwayomi data is in `./suwayomi-data` (not in git). nginx proxies `/api` to Suwayomi, so there is no CORS.
+- Live reload while developing: `dev-mangadeck.bat` (starts only Suwayomi in Docker, then `npm run dev` on 5173).
 - Dev: `npm install`, put `SUWAYOMI_URL=http://localhost:4567` in `.env.local`, `npm run dev` (port 5173, Vite proxies `/api`).
 - The Docker image serves a **built** copy. Source edits do nothing until `docker compose up -d --build` is re-run.
 - Check before finishing: `npx tsc --noEmit && npm run build`.
@@ -24,7 +25,14 @@ src/api/queries.ts    ALL queries/mutations (Q.*, M.*) and types. Change API sha
 src/lib/settings.ts   persisted prefs: reader, library, perManga reader overrides, groups (scanlation choice per manga)
 src/lib/groups.ts     scanlator grouping: listGroups(), visibleChapters(all, pref, keepId)
 src/lib/useImage.ts   image loading with optional bearer auth, preloading
-src/components/       ui.tsx (toasts, Spinner, ErrorBox, Empty, PageHeader, Tabs), Cover, Layout, LoginDialog
+src/lib/volumes.ts    official volumes: lookupVolumes() (Wikipedia), parseVolumeRanges(), volumeOf(), summarizeVolumes(), volumeChapters(), seriesChapters(); PARSER_VERSION
+src/lib/export.ts     buildCbz() (pages + ComicInfo.xml), queueAndWait(), pickSaveFile() (File System Access API)
+src/lib/zip.ts        ZipBuilder: stored zip, optional sink to stream to disk, no ZIP64 (4 GB / 65k files guard)
+src/lib/pacer.ts      paced bulk downloads: waitMs/backoffMs, downloadOne(), saved jobs, startPacer() (runs from Layout)
+src/lib/recommend.ts  AniList recommendations (fetchRecommendations, pickSeeds)
+src/lib/search.ts     queryWords(), titleHasWords() used by library and source search
+src/components/       ui.tsx (toasts, Spinner, ErrorBox, Empty, PageHeader, Tabs, Shelf with arrows), Cover, Layout, LoginDialog,
+                      SourceResults (library "+ Sources" search), PacedJobs (Downloads page), RecDialog (+ RecPeek hover card)
 src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Sources + Extensions), Source, Settings
 ```
 
@@ -35,6 +43,27 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   preferring the group with the most chapters). Chapters with no scanlator are "Unknown group"; unnumbered chapters
   (`chapterNumber < 0`) are never treated as duplicates. `ReaderPage` uses the same `visibleChapters()` so next/previous
   chapter follows the chosen group, and it always keeps the chapter currently open (`keepId`).
+- **Volumes**: Suwayomi has no volume data. `lookupVolumes()` reads Wikipedia "List of X chapters/volumes" pages. Pages come
+  in several styles (numbered lists, `#` lists, "* Chapter: 18–26" bullets) and can hold several series (light novels,
+  the manga, spin-offs), each a run of volumes that restarts at 1. `parseVolumeRanges(wikitext, title)` reads every run and
+  picks one: runs whose chapters keep counting up (light novel chapters restart each volume, so they lose), the run under
+  the heading that matches the title, then the longest. Empty (unreleased) volumes are skipped. When the parser learns
+  something new, bump `PARSER_VERSION`: saved lookups from older versions are redone once when the manga is opened.
+  Results are saved per manga in `settings.volumes`.
+- **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
+  after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
+  `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.
+- **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
+  `timeAgo()` / `dayBucket()` in `format.ts`.
+- **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text.
+  `parseDescription()` splits them, otherwise the line clamp hides the synopsis behind the facts.
+- **Sources are English only** unless `settings.showAllLanguages` is on (the Local source is always shown). Library
+  "+ Sources" search asks English sources six at a time.
+- Outside services called from the browser: Wikipedia (volumes) and AniList (recommendations, hover descriptions).
+  Never send the bearer token or Suwayomi URLs to them; external cover images use a plain `<img>`, not `useImage`.
+- `.hero-bg` (blurred cover) is scaled past the hero; it must keep `pointer-events: none` or it eats clicks on the
+  chapter toolbar. Check hover bugs with `document.elementFromPoint` at several heights, not just the center.
+- For README screenshots the manga covers are hidden on purpose (public repo); see `docs/screenshots/`.
 - Chapters are fetched newest first (`order: SOURCE_ORDER DESC`). Reader "next" is `list[idx - 1]`, "previous" is `list[idx + 1]`.
 - History uses `filter: { lastReadAt: { greaterThan: "0" } }`. `condition: { isRead: true }` is wrong for it.
 - `startDownloader` with an empty queue makes the server hang about 30 s, so the Start button is disabled when the queue is empty.
@@ -48,10 +77,11 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   (`.pb` is Protocol Buffers; Suwayomi parses it, nobody reads it by hand).
 
 ## Testing approach used so far
-Vitest covers `src/lib/groups.ts` (`npm test`, file `src/lib/groups.test.ts`). No UI tests in the repo. Checks were done with Playwright against a live Suwayomi (Local source, generated
-paged/webtoon/CBZ series) and by mocking `/api/graphql` with `page.route` for UI-only features (the group bar was
-tested that way). Not yet exercised: real extension sources, downloads of remote chapters, UI_LOGIN auth.
-Good next step: add Vitest for `src/lib/groups.ts` and a Playwright smoke test to the repo.
+Vitest (`npm test`) covers the pure helpers: groups, volumes parser/mapping, zip writer, ComicInfo, pacing maths, search, dates and
+description parsing. No UI tests in the repo. UI checks were done by driving the dev server in a browser (Playwright earlier, the
+Claude browser pane later) against a live Suwayomi, and by mocking `/api/graphql` with `page.route` for UI-only features.
+Not yet exercised: UI_LOGIN auth, and a full-volume `.cbz` opened in a real comic reader.
+Good next step: a Playwright smoke test in the repo.
 
 ## Ideas not built yet
 Tracker sync (AniList/MAL), double-page spreads, duplicate finder, source migration, backup/restore UI,
