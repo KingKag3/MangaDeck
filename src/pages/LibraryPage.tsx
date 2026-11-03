@@ -6,7 +6,8 @@ import { MangaCard } from '../components/Cover';
 import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
-import { fetchRecommendations, pickSeeds } from '../lib/recommend';
+import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
+import RecDialog from '../components/RecDialog';
 
 type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated';
 
@@ -54,6 +55,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<View>(loadView);
   const [viewOpen, setViewOpen] = useState(false);
+  const [openRec, setOpenRec] = useState<Recommendation | null>(null);
   useEffect(() => {
     if (!viewOpen) return;
     const close = (e: MouseEvent) => {
@@ -319,13 +321,12 @@ export default function LibraryPage() {
           </h2>
           <Shelf>
             {recs.data.map((r) => (
-              <Link
+              <button
                 key={r.id}
-                to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`}
+                type="button"
                 className="shelf-item rec-item"
-                title={`${r.title}
-Because you read ${r.because.join(', ')}
-Search in your source`}
+                onClick={() => setOpenRec(r)}
+                title={`${r.title} — click for the description`}
               >
                 <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
                 <span className="shelf-title">{r.title}</span>
@@ -333,11 +334,13 @@ Search in your source`}
                   {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
                   {r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
                 </span>
-              </Link>
+              </button>
             ))}
           </Shelf>
         </section>
       )}
+
+      {openRec && <RecDialog rec={openRec} onClose={() => setOpenRec(null)} />}
 
       {visible.length === 0 ? (
         mangas.length === 0 ? (

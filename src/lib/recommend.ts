@@ -7,6 +7,9 @@ export interface Recommendation {
   /** AniList average score, 0-100. */
   score: number | null;
   genres: string[];
+  /** Synopsis as plain text (may be empty). */
+  description: string;
+  year: number | null;
   /** Library titles that led to this suggestion. */
   because: string[];
   /** Source of the first seed, used to link to a search in that source. */
@@ -15,7 +18,17 @@ export interface Recommendation {
 }
 
 const ENDPOINT = 'https://graphql.anilist.co';
-const SEEDS = 5;
+const SEEDS = 8;
+
+/** AniList synopses come with <br> tags, stray markup and source credits; make them plain paragraphs. */
+export function cleanDescription(raw: string | null | undefined): string {
+  return (raw ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\(Source:[^)]*\)/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 export const normTitle = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
 
@@ -37,6 +50,8 @@ interface AniNode {
     genres: string[];
     siteUrl: string;
     format: string | null;
+    description: string | null;
+    startDate: { year: number | null } | null;
   } | null;
 }
 
@@ -44,13 +59,13 @@ interface AniNode {
  * Ask AniList what readers of the seed titles also like, merge the answers (votes add up when several seeds
  * point at the same title) and drop anything already in the library.
  */
-export async function fetchRecommendations(seeds: LibraryManga[], library: LibraryManga[], limit = 14): Promise<Recommendation[]> {
+export async function fetchRecommendations(seeds: LibraryManga[], library: LibraryManga[], limit = 30): Promise<Recommendation[]> {
   if (!seeds.length) return [];
-  const fields = `id title{romaji english} coverImage{large} averageScore genres siteUrl format`;
+  const fields = `id title{romaji english} coverImage{large} averageScore genres siteUrl format description(asHtml:false) startDate{year}`;
   const query = `query(${seeds.map((_, i) => `$s${i}:String`).join(',')}){${seeds
     .map(
       (_, i) =>
-        `m${i}:Media(search:$s${i},type:MANGA){recommendations(sort:RATING_DESC,perPage:12){nodes{rating mediaRecommendation{${fields}}}}}`,
+        `m${i}:Media(search:$s${i},type:MANGA){recommendations(sort:RATING_DESC,perPage:15){nodes{rating mediaRecommendation{${fields}}}}}`,
     )
     .join(' ')}}`;
   const variables = Object.fromEntries(seeds.map((s, i) => [`s${i}`, s.title]));
@@ -82,7 +97,9 @@ export async function fetchRecommendations(seeds: LibraryManga[], library: Libra
           title,
           cover: r.coverImage.large ?? '',
           score: r.averageScore,
-          genres: r.genres.slice(0, 3),
+          genres: r.genres.slice(0, 6),
+          description: cleanDescription(r.description),
+          year: r.startDate?.year ?? null,
           because: [seed.title],
           sourceId: seed.sourceId,
           siteUrl: r.siteUrl,
