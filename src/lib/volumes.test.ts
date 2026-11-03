@@ -189,3 +189,90 @@ describe('seriesChapters', () => {
     ]);
   });
 });
+
+describe('parseVolumeRanges, pages with several series', () => {
+  // Light novels first (chapters restart in every volume), then the manga, then a spin-off.
+  const page = `==Light novels==
+{{Graphic novel list/header|x=1}}
+{{Graphic novel list
+| VolumeNumber = 1
+| ChapterListCol1 =
+{{Numbered list|start=1
+| "Prologue"
+| "One"
+| "Two"
+}}
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterListCol1 =
+{{Numbered list|start=1
+| "Prologue"
+| "One"
+| "Two"
+| "Three"
+}}
+}}
+==Manga==
+===''Big Series''===
+{{Graphic novel list
+| VolumeNumber = 1
+| RelDate = October 30, 2015
+| ChapterList =
+{{Numbered list|start=1
+| "A"
+| "B"
+| "C"
+}}
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterList =
+{{Numbered list|start=4
+| "D"
+| "E"
+}}
+}}
+{{Graphic novel list
+| VolumeNumber = 3
+| ChapterList =
+}}
+===''Big Series: Side Story''===
+{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList =
+{{Numbered list|start=1
+| "S1"
+| "S2"
+}}
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterList =
+{{Numbered list|start=3
+| "S3"
+}}
+}}`;
+
+  it('skips the light novels and spin-off and reads the manga under the matching heading', () => {
+    const r = parseVolumeRanges(page, 'Big Series');
+    expect(r.map((x) => [x.volume, x.first, x.last])).toEqual([
+      [1, 1, 3],
+      [2, 4, 5],
+    ]);
+  });
+
+  it('still avoids the light novels without a title (chapters that restart are not a manga run)', () => {
+    const r = parseVolumeRanges(page);
+    expect(r.map((x) => x.volume)).toEqual([1, 2]);
+    expect(r[1].first).toBe(4); // the manga run, not the novel volume starting at 1 again
+  });
+
+  it('prefers the exact heading match over a spin-off that contains the title', () => {
+    const r = parseVolumeRanges(page.replace('===\'\'Big Series\'\'===', "===''Other Name''==="), 'Big Series: Side Story');
+    expect(r.map((x) => [x.volume, x.first, x.last])).toEqual([
+      [1, 1, 2],
+      [2, 3, 3],
+    ]);
+  });
+});

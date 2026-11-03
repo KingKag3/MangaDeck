@@ -14,7 +14,7 @@ export interface VolumeRange {
 }
 
 /** Bump when the parser learns something new, so older saved lookups get refreshed. */
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 
 /** Where a volume map came from, saved per manga. */
 export interface VolumeInfo {
@@ -53,7 +53,12 @@ function splitTop(s: string, sep = '|'): string[] {
 
 /** Contents of every `{{name ...}}` template (without the name), nested ones included in the outer body. */
 function findTemplates(text: string, name: string): string[] {
-  const out: string[] = [];
+  return findTemplatesAt(text, name).map((t) => t.body);
+}
+
+/** Same, with the position where each template starts. */
+function findTemplatesAt(text: string, name: string): { body: string; index: number }[] {
+  const out: { body: string; index: number }[] = [];
   const re = new RegExp(`\\{\\{\\s*${name}\\s*(?=[|\\n}])`, 'gi');
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
@@ -69,7 +74,7 @@ function findTemplates(text: string, name: string): string[] {
         i += 2;
       } else i++;
     }
-    out.push(text.slice(m.index + m[0].length, i - 2));
+    out.push({ body: text.slice(m.index + m[0].length, i - 2), index: m.index });
     re.lastIndex = m.index + m[0].length;
   }
   return out;
@@ -110,14 +115,109 @@ function chapterTitle(item: string): string | undefined {
   return title || undefined;
 }
 
+interface Heading {
+  pos: number;
+  level: number;
+  text: string;
+}
+
+function findHeadings(wikitext: string): Heading[] {
+  const out: Heading[] = [];
+  for (const m of wikitext.matchAll(/^(={2,6})\s*(.+?)\s*\1\s*$/gm)) out.push({ pos: m.index ?? 0, level: m[1].length, text: plain(m[2]) });
+  return out;
+}
+
+/** Read one "Graphic novel list" volume: its chapter range, release date, ISBN and chapter titles. */
+function readVolume(params: Map<string, string>, volume: number, next: number): VolumeRange | null {
+  let first = Infinity;
+  let last = -Infinity;
+  const titles: Record<number, string> = {};
+  for (const [key, value] of params) {
+    if (!/^chapterlist(col\d+)?$/.test(key)) continue;
+    const lists = findTemplates(value, '(?:Numbered list|nlist|Ordered list)');
+    if (lists.length === 0) {
+      const lines = value.split('\n').filter((l) => /^\s*#(?![#*:])/.test(l));
+      const n = lines.length;
+      lines.forEach((l, i) => {
+        const t = chapterTitle(l.replace(/^\s*#/, ''));
+        if (t) titles[next + i] = t;
+      });
+      if (n > 0) {
+        first = Math.min(first, next);
+        last = Math.max(last, next + n - 1);
+      } else {
+        // Some pages just say "* Chapter: 18–26" (or "Chapters 18-26", or a single "Chapter 5").
+        const text = plain(value);
+        const range = /chapters?\s*:?\s*(\d+(?:\.\d+)?)\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?)/i.exec(text);
+        const single = /chapters?\s*:?\s*(\d+(?:\.\d+)?)/i.exec(text);
+        const lo = range ? parseFloat(range[1]) : single ? parseFloat(single[1]) : NaN;
+        const hi = range ? parseFloat(range[2]) : lo;
+        if (Number.isFinite(lo) && hi >= lo) {
+          first = Math.min(first, lo);
+          last = Math.max(last, hi);
+        }
+      }
+      continue;
+    }
+    for (const list of lists) {
+      let start: number | null = null;
+      let count = 0;
+      const items: string[] = [];
+      for (const p of splitTop(list).slice(1)) {
+        const s = /^\s*start\s*=\s*(\d+)\s*$/i.exec(p);
+        if (s) start = parseInt(s[1], 10);
+        else if (/^\s*\w+\s*=/.test(p) && !p.includes('{{')) continue; // other named option
+        else if (p.trim()) {
+          count++;
+          items.push(p);
+        }
+      }
+      if (count === 0) continue;
+      const from = start ?? next;
+      items.forEach((it, i) => {
+        const t = chapterTitle(it);
+        if (t) titles[from + i] = t;
+      });
+      first = Math.min(first, from);
+      last = Math.max(last, from + count - 1);
+    }
+  }
+  if (!(last >= first) || !Number.isFinite(first)) return null;
+  const released = parseWikiDate(params.get('licensedreldate')) ?? parseWikiDate(params.get('originalreldate') ?? params.get('reldate'));
+  const isbn = plain(params.get('licensedisbn') ?? params.get('originalisbn') ?? params.get('isbn') ?? '') || undefined;
+  return {
+    volume,
+    first,
+    last,
+    ...(released ? { released } : {}),
+    ...(isbn ? { isbn } : {}),
+    ...(Object.keys(titles).length ? { titles } : {}),
+  };
+}
+
+/** Consecutive volume tables under one heading; a volume number that restarts begins a new one. */
+interface Sequence {
+  heading: string;
+  section: string;
+  ranges: VolumeRange[];
+}
+
+/** Chapters keep counting up from one volume to the next (a light novel's chapters restart in every volume). */
+const continuous = (rs: VolumeRange[]) => rs.every((r, i) => i === 0 || r.first >= rs[i - 1].last);
+
 /**
  * Read the "Graphic novel list" volume tables used on Wikipedia chapter lists.
- * Each volume holds one or more `{{Numbered list|start = N| item | item }}` blocks, which give its chapters.
+ * Each volume holds one or more `{{Numbered list|start = N| item | item }}` blocks (or a "Chapter: a–b" line).
+ *
+ * A page can hold several series (light novels, the manga, spin-offs), each as its own run of volumes. With `title`
+ * the run under the heading that matches it wins; otherwise the longest run whose chapters keep counting up.
  */
-export function parseVolumeRanges(wikitext: string): VolumeRange[] {
-  const ranges: VolumeRange[] = [];
+export function parseVolumeRanges(wikitext: string, title?: string): VolumeRange[] {
+  const heads = findHeadings(wikitext);
+  const seqs: Sequence[] = [];
+  let cur: Sequence | null = null;
   let next = 1; // chapter number after the previous volume, for lists that do not say where they start
-  for (const body of findTemplates(wikitext, 'Graphic novel list')) {
+  for (const { body, index } of findTemplatesAt(wikitext, 'Graphic novel list')) {
     const params = new Map<string, string>();
     for (const part of splitTop(body).slice(1)) {
       const m = /^\s*(\w+)\s*=([\s\S]*)$/.exec(part);
@@ -125,77 +225,39 @@ export function parseVolumeRanges(wikitext: string): VolumeRange[] {
     }
     const volume = parseInt((params.get('volumenumber') ?? '').trim(), 10);
     if (!Number.isFinite(volume)) continue;
-    // Volume numbers restarting means a new table (spin-offs, side stories): keep only the main series.
-    if (ranges.length > 0 && volume <= ranges[ranges.length - 1].volume) break;
 
-    let first = Infinity;
-    let last = -Infinity;
-    const titles: Record<number, string> = {};
-    for (const [key, value] of params) {
-      if (!/^chapterlist(col\d+)?$/.test(key)) continue;
-      const lists = findTemplates(value, '(?:Numbered list|nlist|Ordered list)');
-      if (lists.length === 0) {
-        const lines = value.split('\n').filter((l) => /^\s*#(?![#*:])/.test(l));
-        const n = lines.length;
-        lines.forEach((l, i) => {
-          const t = chapterTitle(l.replace(/^\s*#/, ''));
-          if (t) titles[next + i] = t;
-        });
-        if (n > 0) {
-          first = Math.min(first, next);
-          last = Math.max(last, next + n - 1);
-        } else {
-          // Some pages just say "* Chapter: 18–26" (or "Chapters 18-26", or a single "Chapter 5").
-          const text = plain(value);
-          const range = /chapters?\s*:?\s*(\d+(?:\.\d+)?)\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?)/i.exec(text);
-          const single = /chapters?\s*:?\s*(\d+(?:\.\d+)?)/i.exec(text);
-          const lo = range ? parseFloat(range[1]) : single ? parseFloat(single[1]) : NaN;
-          const hi = range ? parseFloat(range[2]) : lo;
-          if (Number.isFinite(lo) && hi >= lo) {
-            first = Math.min(first, lo);
-            last = Math.max(last, hi);
-          }
-        }
-        continue;
-      }
-      for (const list of lists) {
-        let start: number | null = null;
-        let count = 0;
-        const items: string[] = [];
-        for (const p of splitTop(list).slice(1)) {
-          const s = /^\s*start\s*=\s*(\d+)\s*$/i.exec(p);
-          if (s) start = parseInt(s[1], 10);
-          else if (/^\s*\w+\s*=/.test(p) && !p.includes('{{')) continue; // other named option
-          else if (p.trim()) {
-            count++;
-            items.push(p);
-          }
-        }
-        if (count === 0) continue;
-        const from = start ?? next;
-        items.forEach((it, i) => {
-          const t = chapterTitle(it);
-          if (t) titles[from + i] = t;
-        });
-        first = Math.min(first, from);
-        last = Math.max(last, from + count - 1);
-      }
+    const lastRange: VolumeRange | undefined = cur?.ranges[cur.ranges.length - 1];
+    if (!cur || (lastRange && volume <= lastRange.volume)) {
+      const before = heads.filter((h) => h.pos < index);
+      cur = {
+        heading: before[before.length - 1]?.text ?? '',
+        section: [...before].reverse().find((h) => h.level === 2)?.text ?? '',
+        ranges: [],
+      };
+      seqs.push(cur);
+      next = 1;
     }
-    if (last >= first && Number.isFinite(first)) {
-      const released = parseWikiDate(params.get('licensedreldate')) ?? parseWikiDate(params.get('originalreldate') ?? params.get('reldate'));
-      const isbn = plain(params.get('licensedisbn') ?? params.get('originalisbn') ?? params.get('isbn') ?? '') || undefined;
-      ranges.push({
-        volume,
-        first,
-        last,
-        ...(released ? { released } : {}),
-        ...(isbn ? { isbn } : {}),
-        ...(Object.keys(titles).length ? { titles } : {}),
-      });
-      next = last + 1;
+    const r = readVolume(params, volume, next);
+    if (r) {
+      cur.ranges.push(r);
+      next = r.last + 1;
     }
   }
-  return ranges.sort((a, b) => a.volume - b.volume);
+
+  let pool = seqs.filter((s) => s.ranges.length > 0 && continuous(s.ranges));
+  if (pool.length === 0) pool = seqs.filter((s) => s.ranges.length > 0); // nothing counts up cleanly: take what there is
+  const t = title ? norm(plain(title)) : '';
+  const score = (s: Sequence) => {
+    const h = norm(s.heading);
+    let n = s.ranges.length;
+    if (t && h === t) n += 2000;
+    else if (t && h.includes(t)) n += 1000;
+    if (!t.includes('novel') && (norm(s.section).includes('novel') || h.includes('novel'))) n -= 500;
+    return n;
+  };
+  let best: Sequence | undefined;
+  for (const s of pool) if (!best || score(s) > score(best)) best = s;
+  return (best?.ranges ?? []).sort((a, b) => a.volume - b.volume);
 }
 
 /* ---------- Wikipedia lookup ---------- */
@@ -227,7 +289,7 @@ export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
   for (const c of candidates) {
     const page = await wikitext(c);
     if (!page) continue;
-    const ranges = parseVolumeRanges(page.text);
+    const ranges = parseVolumeRanges(page.text, title);
     if (ranges.length) return { source: 'wikipedia', v: PARSER_VERSION, page: page.title, ranges };
   }
   return null;
