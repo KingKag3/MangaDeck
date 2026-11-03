@@ -17,6 +17,7 @@ export interface Settings extends ReaderPrefs {
   gridWidth: number; // min cover width in px
   autoDownloadNext: number; // queue N unread chapters ahead when reading (0 = off)
   showBadges: boolean;
+  showAllLanguages: boolean; // list sources in every language, not just English
   perManga: Record<string, Partial<ReaderPrefs>>;
   groups: Record<string, GroupPref>; // chosen scanlation group per manga
   volumes: Record<string, VolumeInfo>; // official volume map found for a manga
@@ -32,6 +33,7 @@ const defaults: Settings = {
   gridWidth: 150,
   autoDownloadNext: 0,
   showBadges: true,
+  showAllLanguages: false,
   perManga: {},
   groups: {},
   volumes: {},

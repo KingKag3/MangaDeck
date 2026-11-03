@@ -117,6 +117,10 @@ export default function SettingsPage() {
           <input type="checkbox" checked={s.showBadges} onChange={(e) => updateSettings({ showBadges: e.target.checked })} />
           <span>Show unread and download badges on covers</span>
         </label>
+        <label className="check">
+          <input type="checkbox" checked={s.showAllLanguages} onChange={(e) => updateSettings({ showAllLanguages: e.target.checked })} />
+          <span>Show sources in other languages (default: English only)</span>
+        </label>
         <label className="field">
           <span>Cover size: {s.gridWidth}px</span>
           <input type="range" min={100} max={260} step={10} value={s.gridWidth} onChange={(e) => updateSettings({ gridWidth: Number(e.target.value) })} />

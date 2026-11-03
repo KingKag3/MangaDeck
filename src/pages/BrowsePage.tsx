@@ -5,6 +5,7 @@ import { M, Q, type Extension } from '../api/queries';
 import { Empty, ErrorBox, PageHeader, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { resolveUrl } from '../api/client';
 import { useImage } from '../lib/useImage';
+import { useSettings } from '../lib/settings';
 
 type Tab = 'sources' | 'extensions';
 
@@ -54,23 +55,31 @@ function LangSelect({ langs, value, onChange }: { langs: string[]; value: string
 }
 
 function SourcesList({ lang, setLang, search }: { lang: string; setLang: (v: string) => void; search: string }) {
+  const { showAllLanguages } = useSettings();
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['sources'], queryFn: Q.sources });
-  const langs = useMemo(() => [...new Set((data ?? []).map((s) => s.lang))].sort(), [data]);
+  // English only unless the setting says otherwise (the Local source has no language and is always shown).
+  const available = useMemo(
+    () => (data ?? []).filter((s) => showAllLanguages || s.lang === 'en' || s.lang === 'localsourcelang'),
+    [data, showAllLanguages],
+  );
+  const langs = useMemo(() => [...new Set(available.map((s) => s.lang))].sort(), [available]);
   const list = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return (data ?? [])
+    return available
       .filter((s) => (lang === 'all' || s.lang === lang) && (!q || s.displayName.toLowerCase().includes(q)))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [data, lang, search]);
+  }, [available, lang, search]);
 
   if (isLoading) return <Spinner />;
   if (error) return <ErrorBox error={error} retry={() => refetch()} />;
 
   return (
     <>
-      <div className="row gap">
-        <LangSelect langs={langs} value={lang} onChange={setLang} />
-      </div>
+      {showAllLanguages && (
+        <div className="row gap">
+          <LangSelect langs={langs} value={lang} onChange={setLang} />
+        </div>
+      )}
       {list.length === 0 ? (
         <Empty title="No sources" hint="Install an extension from the Extensions tab to get sources." />
       ) : (

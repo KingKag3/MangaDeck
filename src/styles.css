@@ -1675,3 +1675,89 @@ input[type='range'] {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+
+/* ---------- Search everywhere ---------- */
+
+.everywhere-source {
+  margin-bottom: 26px;
+}
+.everywhere-head {
+  margin-bottom: 10px;
+}
+.everywhere-head h2 {
+  font-size: 1.05rem;
+}
+.everywhere-head .icon {
+  width: 26px;
+  height: 26px;
+}
+.everywhere-more {
+  margin-left: auto;
+}
+
+/* ---------- Bigger, clearer hover targets on the manga page ---------- */
+
+.link-btn {
+  padding: 6px 10px;
+  margin: -6px -10px; /* a bigger target without moving the layout */
+  border-radius: 8px;
+  transition: background 0.1s;
+}
+.link-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  text-decoration: none;
+}
+.chip-more {
+  padding: 6px 12px;
+}
+.chapter {
+  padding: 0 8px 0 14px;
+  cursor: pointer;
+}
+.chapter-main {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 0;
+  min-height: 52px;
+}
+.chapter-check {
+  width: 20px;
+  height: 20px;
+  margin: 0 2px;
+}
+.icon-btn {
+  width: 44px;
+  height: 44px;
+  font-size: 1.1rem;
+}
+.volume-divider .link-btn {
+  margin: -6px -10px -6px 0;
+}
+.volume-divider {
+  padding-block: 10px;
+}
+.volume-chip {
+  transition: background 0.1s, border-color 0.1s, transform 0.1s;
+}
+.volume-chip:hover {
+  transform: translateY(-1px);
+}
+
+.from-sources {
+  margin-top: 28px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.from-sources > h2 {
+  margin-bottom: 12px;
+}
+.everywhere-head h3 {
+  font-size: 1.05rem;
+}
+
+/* The scaled-up blurred backdrop spills past the hero and would swallow clicks on what is below it. */
+.hero-bg {
+  pointer-events: none;
+}

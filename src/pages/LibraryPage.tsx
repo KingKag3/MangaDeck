@@ -9,6 +9,7 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
 import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
 import RecDialog, { RecPeek } from '../components/RecDialog';
+import SourceResults from '../components/SourceResults';
 
 type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated';
 
@@ -82,6 +83,21 @@ export default function LibraryPage() {
     return () => document.removeEventListener('mousedown', close);
   }, [viewOpen]);
   const activeFilters = Number(view.unreadOnly) + Number(view.downloadedOnly) + Number(view.desc);
+  // Also look for the typed title in the English sources (to find something new to add).
+  const [inSources, setInSources] = useState(() => {
+    try {
+      return localStorage.getItem('mangadeck.libsources') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem('mangadeck.libsources', inSources ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [inSources]);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
@@ -217,6 +233,14 @@ export default function LibraryPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <button
+          className={`btn ghost ${inSources ? 'on' : ''}`}
+          onClick={() => setInSources(!inSources)}
+          aria-pressed={inSources}
+          title="Also search the title in your English sources"
+        >
+          + Sources
+        </button>
         <select
           className="input"
           value={view.sort}
@@ -370,6 +394,13 @@ export default function LibraryPage() {
         </section>
       )}
 
+      {inSources && search.trim().length >= 2 && !selecting && (
+        <section className="from-sources">
+          <h2>From your sources</h2>
+          <SourceResults query={search} />
+        </section>
+      )}
+
       {peek && !openRec && <RecPeek rec={peek.rec} anchor={peek.rect} />}
       {openRec && <RecDialog rec={openRec} onClose={() => setOpenRec(null)} />}
 
@@ -381,7 +412,13 @@ export default function LibraryPage() {
             </Link>
           </Empty>
         ) : (
-          <Empty title="Nothing matches" hint="Try clearing the search or filters." />
+          <Empty title="Nothing matches" hint="Try clearing the search or filters.">
+            {search.trim().length >= 2 && !inSources && (
+              <button className="btn primary" onClick={() => setInSources(true)}>
+                Search your sources for “{search.trim()}”
+              </button>
+            )}
+          </Empty>
         )
       ) : (
         <div className="grid" style={{ ['--cw' as string]: `${settings.gridWidth}px` }}>
