@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, summarizeVolumes, volumeOf } from './volumes';
+import { parseVolumeRanges, summarizeVolumes, volumeChapters, volumeOf } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -104,5 +104,16 @@ describe('summarizeVolumes', () => {
     const ranges = [{ volume: 1, first: 1, last: 2 }];
     const list = [ch(2), { ...ch(2), id: 99 }, ch(1), { ...ch(1), id: 98, isRead: true }];
     expect(summarizeVolumes(list, ranges)).toEqual([{ volume: 1, count: 2, unread: 1, first: 1, last: 2 }]);
+  });
+});
+
+describe('volumeChapters', () => {
+  const ranges = [{ volume: 1, first: 1, last: 3 }];
+  const g = (n: number, scanlator: string, id: number) => ({ ...ch(n), id, scanlator }) as Chapter;
+
+  it('takes one copy per number from the biggest group, oldest first', () => {
+    const list = [g(3, 'A', 1), g(3, 'B', 2), g(2, 'B', 3), g(1, 'B', 4), g(9, 'B', 5)];
+    // B has 4 chapters, A has 1, so B wins; chapter 9 is outside the volume.
+    expect(volumeChapters(list, ranges, 1).map((c) => c.id)).toEqual([4, 3, 2]);
   });
 });

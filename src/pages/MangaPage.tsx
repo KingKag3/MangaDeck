@@ -7,7 +7,8 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { lookupVolumes, summarizeVolumes, volumeColor, volumeOf } from '../lib/volumes';
+import { lookupVolumes, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
+import { buildVolumeCbz, saveBlob } from '../lib/export';
 import {
   effectivePrefs,
   setGroupPref,
@@ -36,6 +37,25 @@ export default function MangaPage() {
   const [expanded, setExpanded] = useState(false);
   const [allTags, setAllTags] = useState(false);
   const [volFilter, setVolFilter] = useState<number | null>(null);
+
+  const [packing, setPacking] = useState<{ volume: number; done: number; total: number } | null>(null);
+
+  async function packVolume(volume: number) {
+    const list = volumeChapters(everything, settings.volumes[String(id)]?.ranges, volume);
+    if (!list.length || packing) return;
+    setPacking({ volume, done: 0, total: list.length });
+    try {
+      const { blob, fileName, pages } = await buildVolumeCbz(manga.data!.title, volume, list, (p) =>
+        setPacking({ volume, done: p.chapter, total: p.chapters }),
+      );
+      saveBlob(blob, fileName);
+      toast(`Saved ${fileName} (${list.length} chapters, ${pages} pages)`);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setPacking(null);
+    }
+  }
 
   const findVolumes = useMutation({
     mutationFn: () => lookupVolumes(manga.data!.title),
@@ -467,14 +487,24 @@ export default function MangaPage() {
                     <li className={`volume-divider ${volClass}`} style={volStyle}>
                       <span>{vol === null ? 'Not in a volume yet' : `Volume ${vol}`}</span>
                       {vol !== null && (
-                        <button
-                          className="link-btn"
-                          onClick={() =>
-                            setSelected(new Set(shown.filter((x) => volumeOf(x, volumeInfo?.ranges) === vol).map((x) => x.id)))
-                          }
-                        >
-                          Select volume
-                        </button>
+                        <span className="row gap">
+                          <button
+                            className="link-btn"
+                            onClick={() =>
+                              setSelected(new Set(shown.filter((x) => volumeOf(x, volumeInfo?.ranges) === vol).map((x) => x.id)))
+                            }
+                          >
+                            Select volume
+                          </button>
+                          <button
+                            className="link-btn"
+                            disabled={!!packing}
+                            onClick={() => packVolume(vol)}
+                            title="Download this volume as one .cbz comic file"
+                          >
+                            {packing?.volume === vol ? `Packing ${packing.done}/${packing.total}…` : '⬇ Download .cbz'}
+                          </button>
+                        </span>
                       )}
                     </li>
                   )}

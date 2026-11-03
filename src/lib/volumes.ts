@@ -1,3 +1,4 @@
+import { groupOf, listGroups } from './groups';
 import type { Chapter } from '../api/queries';
 
 /** Official volume and the chapter numbers it contains (inclusive). */
@@ -208,4 +209,24 @@ export function summarizeVolumes(chapters: Chapter[], ranges: VolumeRange[] | un
     }
   }
   return [...map.values()].sort((a, b) => a.volume - b.volume);
+}
+
+/**
+ * The chapters to pack into one volume file: one copy per chapter number (from the group with the most
+ * chapters), oldest first. Unnumbered chapters come last, in source order.
+ */
+export function volumeChapters(all: Chapter[], ranges: VolumeRange[] | undefined, volume: number): Chapter[] {
+  const rank = new Map(listGroups(all).map((g, i) => [g.name, i]));
+  const rankOf = (c: Chapter) => rank.get(groupOf(c)) ?? 0;
+  const best = new Map<string, Chapter>();
+  for (const c of all) {
+    if (volumeOf(c, ranges) !== volume) continue;
+    const key = c.chapterNumber >= 0 ? `n${c.chapterNumber}` : `id${c.id}`;
+    const have = best.get(key);
+    if (!have || rankOf(c) < rankOf(have)) best.set(key, c);
+  }
+  return [...best.values()].sort((a, b) => {
+    if ((a.chapterNumber >= 0) !== (b.chapterNumber >= 0)) return a.chapterNumber >= 0 ? -1 : 1;
+    return a.chapterNumber >= 0 ? a.chapterNumber - b.chapterNumber : a.sourceOrder - b.sourceOrder;
+  });
 }
