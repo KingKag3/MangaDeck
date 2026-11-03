@@ -51,3 +51,61 @@ export function titleCase(s: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');
 }
+
+export interface ParsedDescription {
+  /** Short facts the source puts in the text, e.g. ["★ 8.06/10", "2013", "730.7K views"]. */
+  meta: string[];
+  /** The synopsis (or the whole text when the source has no headings). */
+  text: string;
+  /** Other "**Heading**: …" sections such as alternative names. */
+  extras: { label: string; text: string }[];
+}
+
+const META_LINE = /^\s*\*\*(Rating|Year|Views)\*\*:\s*(.+?)\s*$/i;
+
+/**
+ * Some sources (Atsumaru) send "**Rating**: 8/10 / **Year**: … / **Synopsis**: …". Shown raw, those lines eat the
+ * space of the clamped description, so split them into a facts row, the synopsis and extra sections.
+ */
+export function parseDescription(raw: string | null | undefined): ParsedDescription {
+  const meta: string[] = [];
+  const kept: string[] = [];
+  for (const line of (raw ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    const m = META_LINE.exec(line);
+    if (!m) {
+      kept.push(line);
+      continue;
+    }
+    const [, label, value] = m;
+    const l = label.toLowerCase();
+    if (l === 'rating') meta.push(`★ ${value}`);
+    else if (l === 'views') meta.push(/^\d+$/.test(value) ? `${Number(value).toLocaleString()} views` : `${value} views`);
+    else meta.push(value);
+  }
+
+  // Split what is left at "**Heading**:" markers.
+  const body = kept.join('\n');
+  const parts = body.split(/\*\*([^*\n]+)\*\*:\s*/);
+  const sections: { label: string; text: string }[] = [];
+  const intro = parts[0].trim();
+  for (let i = 1; i < parts.length; i += 2) sections.push({ label: parts[i].trim(), text: (parts[i + 1] ?? '').trim() });
+
+  const tidy = (s: string) =>
+    s
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/(^|\s)\*(\S[^*]*?)\*(?=\s|$)/g, '$1$2')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+  const synopsis = sections.find((s) => /^synopsis$/i.test(s.label));
+  const text = tidy(synopsis ? synopsis.text : [intro, ...(sections.length && !synopsis ? [] : [])].join('\n') || body);
+  const extras = sections
+    .filter((s) => s !== synopsis && s.text)
+    .map((s) => {
+      const t = tidy(s.text);
+      // "- One\n- Two" lists (alternative names) read better as one wrapped line.
+      const items = t.split('\n').map((l) => l.trim());
+      return { label: s.label, text: items.length > 1 && items.every((l) => l.startsWith('- ')) ? items.map((l) => l.slice(2)).join('  ·  ') : t };
+    });
+  return { meta, text: text || tidy(body), extras };
+}

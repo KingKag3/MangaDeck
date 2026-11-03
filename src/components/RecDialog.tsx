@@ -52,3 +52,20 @@ export default function RecDialog({ rec, onClose }: { rec: Recommendation; onClo
     </div>
   );
 }
+
+/** Hover card with the synopsis, placed beside the card it belongs to. It never takes the pointer. */
+export function RecPeek({ rec, anchor }: { rec: Recommendation; anchor: DOMRect }) {
+  const width = 340;
+  const margin = 12;
+  const roomRight = window.innerWidth - anchor.right;
+  const left = roomRight >= width + margin ? anchor.right + margin : Math.max(margin, anchor.left - width - margin);
+  const top = Math.min(Math.max(margin, anchor.top), Math.max(margin, window.innerHeight - 330));
+  return (
+    <div className="rec-peek" style={{ left, top, width }} role="tooltip">
+      <b>{rec.title}</b>
+      <div className="muted small">{[rec.score ? `★ ${(rec.score / 10).toFixed(1)}` : null, rec.year, rec.genres.slice(0, 3).join(', ')].filter(Boolean).join(' · ')}</div>
+      <p>{rec.description || 'No description available.'}</p>
+      <div className="muted small">Because you read {rec.because.slice(0, 3).join(', ')}</div>
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type LibraryManga } from '../api/queries';
@@ -7,7 +7,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
-import RecDialog from '../components/RecDialog';
+import RecDialog, { RecPeek } from '../components/RecDialog';
 
 type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated';
 
@@ -56,6 +56,22 @@ export default function LibraryPage() {
   const [view, setView] = useState<View>(loadView);
   const [viewOpen, setViewOpen] = useState(false);
   const [openRec, setOpenRec] = useState<Recommendation | null>(null);
+
+  // Hovering a recommendation shows its description after a short pause, so no extra click is needed.
+  const [peek, setPeek] = useState<{ rec: Recommendation; rect: DOMRect } | null>(null);
+  const peekTimer = useRef<number | undefined>(undefined);
+  const showPeek = (rec: Recommendation, el: HTMLElement) => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => setPeek({ rec, rect: el.getBoundingClientRect() }), 350);
+  };
+  const hidePeek = () => {
+    window.clearTimeout(peekTimer.current);
+    setPeek(null);
+  };
+  useEffect(() => {
+    window.addEventListener('scroll', hidePeek, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', hidePeek, { capture: true });
+  }, []);
   useEffect(() => {
     if (!viewOpen) return;
     const close = (e: MouseEvent) => {
@@ -321,25 +337,39 @@ export default function LibraryPage() {
           </h2>
           <Shelf>
             {recs.data.map((r) => (
-              <button
+              <div
                 key={r.id}
-                type="button"
                 className="shelf-item rec-item"
-                onClick={() => setOpenRec(r)}
-                title={`${r.title} — click for the description`}
+                onMouseEnter={(e) => showPeek(r, e.currentTarget)}
+                onMouseLeave={hidePeek}
               >
-                <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
-                <span className="shelf-title">{r.title}</span>
-                <span className="muted small">
-                  {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
-                  {r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
-                </span>
-              </button>
+                <Link to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`} className="rec-link">
+                  <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
+                  <span className="shelf-title">{r.title}</span>
+                  <span className="muted small">
+                    {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
+                    {r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  className="rec-info"
+                  aria-label={`Details for ${r.title}`}
+                  title="Details"
+                  onClick={() => {
+                    hidePeek();
+                    setOpenRec(r);
+                  }}
+                >
+                  i
+                </button>
+              </div>
             ))}
           </Shelf>
         </section>
       )}
 
+      {peek && !openRec && <RecPeek rec={peek.rec} anchor={peek.rect} />}
       {openRec && <RecDialog rec={openRec} onClose={() => setOpenRec(null)} />}
 
       {visible.length === 0 ? (

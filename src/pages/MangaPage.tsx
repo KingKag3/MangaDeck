@@ -5,7 +5,7 @@ import { M, Q, type Chapter } from '../api/queries';
 import { Cover } from '../components/Cover';
 import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
-import { chapterLabel, timeAgo, titleCase } from '../lib/format';
+import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf } from '../lib/volumes';
 import { buildCbz, canSaveToDisk, pickSaveFile, queueAndWait, safeFileName, saveBlob } from '../lib/export';
@@ -207,6 +207,7 @@ export default function MangaPage() {
   const all = useMemo(() => visibleChapters(everything, groupPref), [everything, groupPref]);
 
   const volumeInfo = settings.volumes[String(id)];
+  const desc = useMemo(() => parseDescription(manga.data?.description), [manga.data?.description]);
 
   // A lookup saved by an older parser may be incomplete (e.g. only 2 of 16 volumes): quietly redo it once.
   const redoneVolumes = useRef(false);
@@ -299,10 +300,25 @@ export default function MangaPage() {
               )}
             </div>
           )}
-          {m.description && (
-            <p className={`desc ${expanded ? 'open' : ''}`} onClick={() => setExpanded(!expanded)}>
-              {m.description.replace(/\*\*(.+?)\*\*/g, '$1')}
-            </p>
+          {desc.meta.length > 0 && <div className="desc-meta">{desc.meta.join('  ·  ')}</div>}
+          {desc.text && (
+            <div className="desc-wrap">
+              <p className={`desc ${expanded ? 'open' : ''}`} onClick={() => setExpanded(!expanded)}>
+                {desc.text}
+              </p>
+              {expanded &&
+                desc.extras.map((x) => (
+                  <div key={x.label} className="desc-extra">
+                    <b>{x.label}</b>
+                    <p>{x.text}</p>
+                  </div>
+                ))}
+              {(desc.text.length > 260 || desc.extras.length > 0) && (
+                <button className="link-btn" onClick={() => setExpanded(!expanded)}>
+                  {expanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </div>
           )}
           <div className="row gap wrap actions">
             {target && (
