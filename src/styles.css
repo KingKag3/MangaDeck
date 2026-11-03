@@ -1786,3 +1786,22 @@ input[type='range'] {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 0 14px;
 }
+
+/* ---------- Volume editor ---------- */
+
+.volume-dialog {
+  width: min(560px, 100%);
+}
+.volume-text {
+  width: 100%;
+  margin: 10px 0 6px;
+  font: 0.9rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+.volume-preview {
+  margin-bottom: 12px;
+  min-height: 1.4em;
+}
+.volume-dialog .btn {
+  margin-top: 0;
+}

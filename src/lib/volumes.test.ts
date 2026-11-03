@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, summarizeVolumes, seriesChapters, volumeChapters, volumeOf } from './volumes';
+import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -274,5 +274,53 @@ describe('parseVolumeRanges, pages with several series', () => {
       [1, 1, 2],
       [2, 3, 3],
     ]);
+  });
+});
+
+describe('parseVolumeText', () => {
+  it('reads one volume per line', () => {
+    expect(parseVolumeText('1: 0-12\nVol. 2 = 13 to 26\nVolume 3 - Chapters 27–39.5\nnot a volume line')).toEqual([
+      { volume: 1, first: 0, last: 12 },
+      { volume: 2, first: 13, last: 26 },
+      { volume: 3, first: 27, last: 39.5 },
+    ]);
+  });
+
+  it('reads text copied from a page, with a prologue and repeated volume rows', () => {
+    const page = [
+      'Volume 1',
+      'Prologue',
+      'Chapter 1',
+      'Chapter 2',
+      'Chapter 12',
+      'Korean: September 26, 2019 979-11-89320-29-4',
+      'Volume 1',
+      'English: March 2, 2021',
+      'Volume 2',
+      'Chapter 13',
+      'Chapter 14',
+      'Chapter 26',
+      'Korean: January 30, 2020',
+    ].join('\n');
+    expect(parseVolumeText(page)).toEqual([
+      { volume: 1, first: 0, last: 12 },
+      { volume: 2, first: 13, last: 26 },
+    ]);
+  });
+
+  it('reads "Chapters a-b" ranges inside a volume block and ignores volumes without chapters', () => {
+    expect(parseVolumeText('Volume 1 contains Chapters 1-7 and a map. Volume 2 is an artbook. Volume 3: Chapters 8 to 15')).toEqual([
+      { volume: 1, first: 1, last: 7 },
+      { volume: 3, first: 8, last: 15 },
+    ]);
+  });
+
+  it('returns nothing for text without volumes, and round-trips through the editor text', () => {
+    expect(parseVolumeText('hello world')).toEqual([]);
+    const ranges = [
+      { volume: 1, first: 0, last: 12 },
+      { volume: 2, first: 13, last: 26 },
+    ];
+    expect(parseVolumeText(volumeRangesToText(ranges))).toEqual(ranges);
   });
 });

@@ -18,7 +18,7 @@ export const PARSER_VERSION = 3;
 
 /** Where a volume map came from, saved per manga. */
 export interface VolumeInfo {
-  source: 'wikipedia';
+  source: 'wikipedia' | 'manual';
   /** Parser version that produced `ranges` (missing on lookups saved before versions existed). */
   v?: number;
   page: string;
@@ -400,4 +400,49 @@ export function seriesChapters(all: Chapter[], ranges: VolumeRange[] | undefined
     if ((x.chapterNumber >= 0) !== (y.chapterNumber >= 0)) return x.chapterNumber >= 0 ? -1 : 1;
     return x.chapterNumber >= 0 ? x.chapterNumber - y.chapterNumber : x.sourceOrder - y.sourceOrder;
   });
+}
+
+/* ---------- Volumes typed or pasted by hand ---------- */
+
+/**
+ * Read volume ranges from text. Understands one volume per line ("1: 0-12", "Vol. 2 ch 13-26") and text copied
+ * from a wiki or publisher page ("Volume 1 … Prologue, Chapter 1 … Chapter 12 … Volume 2 …"). A volume that
+ * shows up more than once (a Korean and an English row, say) is merged.
+ */
+export function parseVolumeText(text: string): VolumeRange[] {
+  const byVolume = new Map<number, { first: number; last: number }>();
+  const add = (volume: number, lo: number, hi: number) => {
+    if (!Number.isFinite(volume) || !Number.isFinite(lo) || !Number.isFinite(hi)) return;
+    const cur = byVolume.get(volume);
+    byVolume.set(volume, { first: Math.min(lo, hi, cur?.first ?? Infinity), last: Math.max(lo, hi, cur?.last ?? -Infinity) });
+  };
+  const num = /(\d+(?:\.\d+)?)/.source;
+
+  // Simple lines first: "1: 0-12", "Vol 2 = 13 to 26", "Volume 3 - Chapters 27–39".
+  const line = new RegExp(String.raw`^\s*(?:vol(?:ume)?\.?\s*)?(\d+)\s*[:=–—-]?\s*(?:chapters?\.?\s*|ch\.?\s*)?${num}\s*(?:[–—-]|to)\s*${num}\s*$`, 'i');
+  for (const l of text.split(/\r?\n/)) {
+    const m = line.exec(l);
+    if (m) add(parseInt(m[1], 10), parseFloat(m[2]), parseFloat(m[3]));
+  }
+  if (byVolume.size === 0) {
+    // Page text: cut at every "Volume N" and take the chapter numbers mentioned before the next one.
+    const parts = text.split(/\b(?:volume|vol\.?)\s*(\d+)\b/i);
+    for (let i = 1; i < parts.length; i += 2) {
+      const volume = parseInt(parts[i], 10);
+      const body = parts[i + 1] ?? '';
+      const found: number[] = [];
+      for (const m of body.matchAll(new RegExp(String.raw`\b(?:chapters?|ch\.?)\s*${num}(?:\s*(?:[–—-]|to)\s*${num})?`, 'gi'))) {
+        found.push(parseFloat(m[1]));
+        if (m[2]) found.push(parseFloat(m[2]));
+      }
+      if (/\bprologue\b/i.test(body)) found.push(0);
+      if (found.length) add(volume, Math.min(...found), Math.max(...found));
+    }
+  }
+  return [...byVolume.entries()].map(([volume, r]) => ({ volume, ...r })).sort((a, b) => a.volume - b.volume);
+}
+
+/** One line per volume, the way the editor shows and accepts them. */
+export function volumeRangesToText(ranges: VolumeRange[]): string {
+  return ranges.map((r) => `${r.volume}: ${r.first}-${r.last}`).join('\n');
 }
