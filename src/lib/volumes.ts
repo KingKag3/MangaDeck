@@ -128,10 +128,12 @@ function findHeadings(wikitext: string): Heading[] {
 }
 
 /** "Chapter: 18–26", "Chapters 18-26", "Mission: 5", "Episode 3 to 9": a chapter word, then one number or a range. */
-const CHAPTER_WORDS = 'chapters?|ch|missions?|episodes?|acts?|stages?|rounds?|cases?|lessons?';
+const CHAPTER_WORDS = 'chapters?|ch|missions?|episodes?|acts?|stages?|rounds?|cases?|lessons?|days?|scenes?|quests?|tracks?';
 const CHAPTER_REF = new RegExp(String.raw`\b(?:${CHAPTER_WORDS})\.?\s*:?\s*(\d+(?:\.\d+)?)(?:\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?))?`, 'gi');
 /** A bullet that starts with the chapter word itself: "*Mission: 1–5" counts, "*Short Mission: 14" does not. */
 const CHAPTER_LINE = new RegExp(String.raw`^\s*[*#:]*\s*(?:${CHAPTER_WORDS})\b`, 'i');
+/** "*Days 12: Title": one chapter per bullet, with its number and title. */
+const CHAPTER_TITLE_LINE = new RegExp(String.raw`^\s*[*#:]*\s*(?:${CHAPTER_WORDS})\.?\s*(\d+(?:\.\d+)?)\s*:\s*(.+)$`, 'i');
 
 /** Read one "Graphic novel list" volume: its chapter range, release date, ISBN and chapter titles. */
 function readVolume(params: Map<string, string>, volume: number, next: number): VolumeRange | null {
@@ -154,6 +156,12 @@ function readVolume(params: Map<string, string>, volume: number, next: number): 
       } else {
         // Some pages just say "* Chapter: 18–26" (or "Chapters 18-26", or a single "Chapter 5").
         // Series name their chapters differently ("Mission: 12–17"); lines about extras ("Short Mission: 14") are not part of the run.
+        // A bullet per chapter ("*Days 1: {{Nihongo|"Title"|…}}") also gives the chapter titles.
+        for (const l of value.split('\n')) {
+          const m = CHAPTER_TITLE_LINE.exec(l);
+          const t = m && chapterTitle(m[2]);
+          if (m && t) titles[parseFloat(m[1])] = t;
+        }
         const text = plain(value)
           .split('\n')
           .filter((l) => CHAPTER_LINE.test(l))

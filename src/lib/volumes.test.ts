@@ -378,3 +378,37 @@ describe('parseVolumeRanges, "Mission" style pages', () => {
     expect(parseVolumeRanges(text).map((r) => [r.volume, r.first, r.last])).toEqual([[1, 1, 8]]);
   });
 });
+
+describe('parseVolumeRanges, one bullet per chapter ("Days 1: Title")', () => {
+  const page = `{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList =
+*Days 1: {{Nihongo|"The Legendary Hit Man"|伝説の殺し屋|Densetsu}}
+*Days 2: {{Nihongo|"Family Rules"|家訓|Kekakun}}
+| ChapterListCol2 =
+*Days 3: {{Nihongo|"Mysterious Hero"|ヒーロー|Hiro}}
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterList =
+*Days 4: {{Nihongo|"China Invasion!"|x|y}}
+*Days 5: {{Nihongo|"Showtime"|x|y}}
+*Special Days: 99
+}}
+=== ''Holidays'' ===
+{{Graphic novel list
+| VolumeNumber = 1
+| ChapterList =
+*Days 1: {{Nihongo|"Other"|x|y}}
+}}`;
+
+  it('reads the chapter numbers and titles, across columns, and ignores special lines', () => {
+    const r = parseVolumeRanges(page, 'Sakamoto Days');
+    expect(r.map((x) => [x.volume, x.first, x.last])).toEqual([
+      [1, 1, 3],
+      [2, 4, 5],
+    ]);
+    expect(r[0].titles).toEqual({ 1: 'The Legendary Hit Man', 2: 'Family Rules', 3: 'Mysterious Hero' });
+    expect(r[1].titles).toEqual({ 4: 'China Invasion!', 5: 'Showtime' });
+  });
+});
