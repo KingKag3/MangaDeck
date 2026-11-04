@@ -57,6 +57,14 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   paste a volume list, or **import from a wiki link** (`wikiImport.ts`: a Wikipedia list page, or one volume page of a
   Fandom wiki such as `…/wiki/Manga_Volume_1`, which follows Volume 2, 3, … and reads each "Chapters" section).
   Hand-entered volumes (`source: 'manual'`) are never replaced by a lookup.
+  **The volume "database"**: a found, entered or imported volume map is saved in two places (`volumeStore.ts`): this browser
+  (`settings.volumes`) and the Suwayomi server, as manga meta under the key `mangadeck.volumes` (`setMangaMeta` /
+  `deleteMangaMeta`). The server copy follows the manga to every browser and address (5173 and 8080) and survives Docker
+  rebuilds. On opening a manga the newest copy (`savedAt`) wins: pull when the browser has none, push when the server has
+  none. Always save through `saveVolumes()`, not `setVolumeInfo()` directly (that one is only for pulling).
+  **Rules** (`volumeRules.ts`): a built-in list of series no automatic source can read, checked before Wikipedia
+  (`source: 'rule'`). To add one, set the volumes in the app, then copy the ranges into `VOLUME_RULES` with every title the
+  sources use for that series.
   **Tried and rejected** (do not redo): MangaDex (browsers are bot-challenged; through a Vite/nginx relay it works but
   licensed series have few volumes filled in; Solo Leveling had only vol 1), Kitsu (`volumeNumber` is a placeholder:
   every Solo Leveling chapter is volume 1), AniList/MyAnimeList (volume counts only), Amazon/BookWalker (no chapter

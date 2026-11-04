@@ -1,4 +1,5 @@
 import { groupOf, listGroups } from './groups';
+import { findVolumeRule } from './volumeRules';
 import type { Chapter } from '../api/queries';
 
 /** Official volume and the chapter numbers it contains (inclusive). */
@@ -18,7 +19,9 @@ export const PARSER_VERSION = 3;
 
 /** Where a volume map came from, saved per manga. */
 export interface VolumeInfo {
-  source: 'wikipedia' | 'manual';
+  source: 'wikipedia' | 'manual' | 'rule';
+  /** When it was saved (ms). The newest copy wins when the browser and the server disagree. */
+  savedAt?: number;
   /** Parser version that produced `ranges` (missing on lookups saved before versions existed). */
   v?: number;
   page: string;
@@ -308,6 +311,10 @@ export function titleVariants(title: string): string[] {
 
 /** Find the "List of <title> chapters/volumes" page on Wikipedia and read its volumes. Returns null if none is usable. */
 export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
+  // Series we already worked out by hand come first.
+  const rule = findVolumeRule(title);
+  if (rule) return { ...rule, v: PARSER_VERSION };
+
   const variants = titleVariants(title);
   const candidates: string[] = [];
   for (const v of variants) candidates.push(`List of ${v} chapters`, `List of ${v} volumes`);

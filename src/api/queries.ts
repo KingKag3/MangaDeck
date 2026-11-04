@@ -55,6 +55,8 @@ export interface MangaDetail extends MangaBase {
   categories: { nodes: { id: number }[] };
   firstUnreadChapter: { id: number; name: string; chapterNumber: number } | null;
   lastReadChapter: { id: number; lastReadAt: string } | null;
+  /** Free-form key/value pairs the server keeps for this manga (Mangadeck stores its volume map here). */
+  meta: { key: string; value: string }[];
 }
 
 export interface Chapter {
@@ -156,6 +158,7 @@ export const Q = {
           categories { nodes { id } }
           firstUnreadChapter { id name chapterNumber }
           lastReadChapter { id lastReadAt }
+          meta { key value }
         }
       }`,
       { id },
@@ -281,6 +284,24 @@ export const M = {
         updateChapter(input: { id: $id, patch: $patch }) { chapter { id isRead lastPageRead } }
       }`,
       { id, patch },
+    );
+  },
+
+  setMangaMeta(mangaId: number, key: string, value: string) {
+    return gql(
+      `mutation($mangaId: Int!, $key: String!, $value: String!) {
+        setMangaMeta(input: { meta: { mangaId: $mangaId, key: $key, value: $value } }) { meta { key value } }
+      }`,
+      { mangaId, key, value },
+    );
+  },
+
+  deleteMangaMeta(mangaId: number, key: string) {
+    return gql(
+      `mutation($mangaId: Int!, $key: String!) {
+        deleteMangaMeta(input: { mangaId: $mangaId, key: $key }) { meta { key value } }
+      }`,
+      { mangaId, key },
     );
   },
 

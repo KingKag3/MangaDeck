@@ -86,6 +86,8 @@ src/lib/useImage.ts   image loading with optional bearer auth + preloading
 src/lib/groups.ts     scanlation group filtering
 src/lib/volumes.ts    official volumes: Wikipedia lookup + parser, chapter-to-volume mapping, typed/pasted volumes
 src/lib/wikiImport.ts import volumes from a Wikipedia/Fandom link (follows "Manga Volume N" pages)
+src/lib/volumeStore.ts  saves volume maps in the browser and on the Suwayomi server (manga meta)
+src/lib/volumeRules.ts  built-in volume lists for series no automatic source can read
 src/lib/export.ts     build a .cbz (pages + ComicInfo.xml), save to disk or download
 src/lib/zip.ts        tiny dependency-free zip writer (stored, streams to a file)
 src/lib/pacer.ts      paced bulk downloads: timing, one-chapter-at-a-time runner, saved jobs

@@ -10,6 +10,7 @@ import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { markSeen } from '../lib/fresh';
+import { chooseSync, pushVolumeMeta, saveVolumes, volumeInfoFromMeta } from '../lib/volumeStore';
 import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
 import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
 import {
@@ -211,8 +212,8 @@ export default function MangaPage() {
     mutationFn: () => lookupVolumes(manga.data!.title),
     onSuccess: (info) => {
       if (info) {
-        setVolumeInfo(id, info);
-        toast(`Found ${info.ranges.length} volumes on Wikipedia`);
+        saveVolumes(id, info);
+        toast(`Found ${info.ranges.length} volumes ${info.source === 'rule' ? 'in the built-in list' : 'on Wikipedia'}`);
       } else toast('No chapter-by-volume list found for this title. Use “Set volumes” to enter them by hand.', 'error');
     },
     onError: errorToast,
@@ -321,11 +322,22 @@ export default function MangaPage() {
   const redoneVolumes = useRef(false);
   useEffect(() => {
     // Volumes typed in by hand are never looked up again.
-    if (!volumeInfo || volumeInfo.source === 'manual' || (volumeInfo.v ?? 1) >= PARSER_VERSION || redoneVolumes.current || !manga.data) return;
+    if (!volumeInfo || volumeInfo.source !== 'wikipedia' || (volumeInfo.v ?? 1) >= PARSER_VERSION || redoneVolumes.current || !manga.data) return;
     redoneVolumes.current = true;
     findVolumes.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volumeInfo, manga.data]);
+  // The server keeps a copy of the volumes with the manga: take it when this browser has none (or an older one),
+  // and send ours when the server has none, so every browser and address ends up with the same volumes.
+  useEffect(() => {
+    if (!manga.data) return;
+    const remote = volumeInfoFromMeta(manga.data.meta);
+    const action = chooseSync(volumeInfo, remote);
+    if (action === 'pull' && remote) setVolumeInfo(id, remote);
+    else if (action === 'push' && volumeInfo) pushVolumeMeta(id, volumeInfo);
+    // Only when the manga loads: saving from the page already pushes by itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manga.data, id]);
   const volumes = useMemo(() => summarizeVolumes(all, volumeInfo?.ranges), [all, volumeInfo]);
   const activeVolume = volFilter !== null && volumes.some((v) => v.volume === volFilter) ? volFilter : null;
 
@@ -623,7 +635,9 @@ export default function MangaPage() {
                   ? ' · from chapter names'
                   : volumeInfo.source === 'manual'
                     ? ' · entered by hand'
-                    : ` · from Wikipedia (${volumeInfo.page})`}
+                    : volumeInfo.source === 'rule'
+                      ? ` · from the built-in list (${volumeInfo.page})`
+                      : ` · from Wikipedia (${volumeInfo.page})`}
               </span>
               <span className="row gap">
                 <button
@@ -636,7 +650,7 @@ export default function MangaPage() {
                 </button>
                 {volumeInfo && (
                   <>
-                  {volumeInfo.source !== 'manual' && (
+                  {volumeInfo.source === 'wikipedia' && (
                     <button className="link-btn" onClick={() => findVolumes.mutate()} disabled={findVolumes.isPending}>
                       {findVolumes.isPending ? 'Refreshing…' : 'Refresh'}
                     </button>
@@ -644,7 +658,7 @@ export default function MangaPage() {
                   <button className="link-btn" onClick={() => setEditVolumes(true)}>
                     Edit
                   </button>
-                  <button className="link-btn" onClick={() => setVolumeInfo(id, null)}>
+                  <button className="link-btn" onClick={() => saveVolumes(id, null)}>
                     Remove
                   </button>
                   </>
@@ -791,7 +805,7 @@ export default function MangaPage() {
           initial={volumeInfo?.ranges}
           onClose={() => setEditVolumes(false)}
           onSave={(ranges) => {
-            setVolumeInfo(id, { source: 'manual', v: PARSER_VERSION, page: 'entered by hand', ranges });
+            saveVolumes(id, { source: 'manual', v: PARSER_VERSION, page: 'entered by hand', ranges });
             setEditVolumes(false);
             toast(`Saved ${ranges.length} volume${ranges.length === 1 ? '' : 's'}`);
           }}
