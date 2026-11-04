@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseSync, volumeInfoFromMeta, META_KEY, META_LIMIT, serverCopy } from './volumeStore';
+import { chooseSync, volumeInfoFromMeta, META_KEY, META_LIMIT, serverCopy, takeRule } from './volumeStore';
 import { findVolumeRule } from './volumeRules';
 import type { VolumeInfo } from './volumes';
 
@@ -95,5 +95,39 @@ describe('serverCopy', () => {
     expect(v.ranges).toHaveLength(60);
     expect(v.ranges[0]).toEqual({ volume: 1, first: 1, last: 10 });
     expect(serverCopy(big(400, 0))).toBeNull();
+  });
+});
+
+describe('takeRule', () => {
+  const fakeStore = () => {
+    const m = new Map<string, string>();
+    return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
+  };
+
+  it('gives the built-in list the first time, and nothing the second time (so Remove sticks)', () => {
+    const store = fakeStore();
+    const first = takeRule(2275, 'Solo Leveling', store);
+    expect(first?.source).toBe('rule');
+    expect(first?.ranges).toHaveLength(15);
+    expect(first?.v).toBeGreaterThan(0);
+    expect(takeRule(2275, 'Solo Leveling', store)).toBeNull();
+    // another series is unaffected
+    expect(takeRule(3644, 'Mushoku Tensei - Jobless Reincarnation', store)?.ranges).toHaveLength(25);
+  });
+
+  it('knows the series added from the server export', () => {
+    const r = takeRule(2868, 'I Was Reincarnated as the 7th Prince so I Can Take My Time Perfecting My Magical Ability', fakeStore());
+    expect(r?.ranges).toHaveLength(24);
+    expect(r?.ranges[0]).toEqual({ volume: 1, first: 1, last: 7 });
+  });
+
+  it('returns null for a series with no rule, without using up anything', () => {
+    const store = fakeStore();
+    expect(takeRule(1, 'Some Unlisted Series', store)).toBeNull();
+    expect(store.getItem('mangadeck.rulesApplied')).toBeNull();
+  });
+
+  it('works without any storage', () => {
+    expect(takeRule(5, 'Solo Leveling', undefined)?.ranges).toHaveLength(15);
   });
 });

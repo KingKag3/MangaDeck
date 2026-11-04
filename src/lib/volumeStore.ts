@@ -1,6 +1,7 @@
 import { M, type MangaDetail } from '../api/queries';
 import { setVolumeInfo } from './settings';
-import type { VolumeInfo } from './volumes';
+import { PARSER_VERSION, type VolumeInfo } from './volumes';
+import { findVolumeRule } from './volumeRules';
 
 /**
  * Volume maps are kept in two places: this browser (fast, `settings.volumes`) and the Suwayomi server, as a piece of
@@ -76,4 +77,37 @@ export function saveVolumes(mangaId: number, info: VolumeInfo | null) {
   const stamped = { ...info, savedAt: Date.now() };
   setVolumeInfo(mangaId, stamped);
   pushVolumeMeta(mangaId, stamped);
+}
+
+/* ---------- Built-in rules applied by themselves, once per series ---------- */
+
+const APPLIED_KEY = 'mangadeck.rulesApplied';
+
+type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>;
+
+function appliedIds(store: KeyValueStore | undefined): number[] {
+  try {
+    const raw = store?.getItem(APPLIED_KEY);
+    const v = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The built-in rule for this series, the first time it is asked for. Opening a series with a rule fills in its volumes
+ * without a click; asking again returns null, so pressing Remove is respected.
+ */
+export function takeRule(mangaId: number, title: string, store: KeyValueStore | undefined = globalThis.localStorage): VolumeInfo | null {
+  const applied = appliedIds(store);
+  if (applied.includes(mangaId)) return null;
+  const rule = findVolumeRule(title);
+  if (!rule) return null;
+  try {
+    store?.setItem(APPLIED_KEY, JSON.stringify([...applied, mangaId]));
+  } catch {
+    /* ignore */
+  }
+  return { ...rule, v: PARSER_VERSION };
 }

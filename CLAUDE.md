@@ -68,9 +68,17 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   `v: 1` so the page re-reads the full details once. Do not add big fields to `VolumeInfo` without checking this.
   Saving from the Edit volumes dialog keeps the dates, ISBNs and titles of volumes that are still in the list
   (`keepExtras()`), and saving without a change does nothing (`sameRanges()`).
-  **Rules** (`volumeRules.ts`): a built-in list of series no automatic source can read, checked before Wikipedia
-  (`source: 'rule'`). To add one, set the volumes in the app, then copy the ranges into `VOLUME_RULES` with every title the
-  sources use for that series.
+  **Rules** (`volumeRules.ts` reading `src/data/volumeRules.json`): the volume lists worked out by hand, shared with every
+  user of the app through git. A rule is checked before Wikipedia by `Find volumes` (`source: 'rule'`), and `takeRule()`
+  also applies it by itself the first time a series is opened (remembered in `mangadeck.rulesApplied`, so pressing Remove
+  sticks).
+  **Sharing volume history: before every commit or push, run `npm run volumes:export`** (Suwayomi must be running; it uses
+  `SUWAYOMI_URL`, default `http://localhost:4567`; add `-- --dry` to preview) and include `src/data/volumeRules.json`. The
+  script (`scripts/export-volume-rules.mjs`, logic in `scripts/volumeRulesExport.mjs`) reads every manga's saved volume map
+  from the server and copies the hand-made ones (`source: 'manual'`, i.e. typed or wiki-imported) into the JSON: new series
+  become rules, a known title gets its ranges replaced when they changed, an identical list adds the title as another name.
+  Lists read from Wikipedia are left out (every app finds those itself). Only titles and chapter ranges are stored, nothing
+  personal.
   **Tried and rejected** (do not redo): MangaDex (browsers are bot-challenged; through a Vite/nginx relay it works but
   licensed series have few volumes filled in; Solo Leveling had only vol 1), Kitsu (`volumeNumber` is a placeholder:
   every Solo Leveling chapter is volume 1), AniList/MyAnimeList (volume counts only), Amazon/BookWalker (no chapter

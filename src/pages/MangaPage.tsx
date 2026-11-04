@@ -11,7 +11,7 @@ import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges,
 import VolumeDialog from '../components/VolumeDialog';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
-import { chooseSync, pushVolumeMeta, saveVolumes, volumeInfoFromMeta } from '../lib/volumeStore';
+import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
 import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
 import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
 import {
@@ -355,6 +355,11 @@ export default function MangaPage() {
     // A shortened Wikipedia copy is marked old (v: 1), so the page quietly reads the full details again, once.
     if (action === 'pull' && remote) setVolumeInfo(id, remote.slim && remote.source === 'wikipedia' ? { ...remote, v: 1 } : remote);
     else if (action === 'push' && volumeInfo) pushVolumeMeta(id, volumeInfo);
+    else if (action === 'none' && !volumeInfo && !remote) {
+      // Nothing saved anywhere: a built-in rule for this series (shared with every user) fills it in, once.
+      const rule = takeRule(id, manga.data.title);
+      if (rule) saveVolumes(id, rule);
+    }
     // Only when the manga loads: saving from the page already pushes by itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga.data, id]);
