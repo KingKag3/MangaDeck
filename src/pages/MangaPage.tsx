@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type Chapter } from '../api/queries';
 import { Cover } from '../components/Cover';
 import { useImage } from '../lib/useImage';
@@ -10,6 +10,8 @@ import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import ShareDialog from '../components/ShareDialog';
+import LinkedSources from '../components/LinkedSources';
+import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
@@ -78,8 +80,8 @@ export default function MangaPage() {
     const ranges = settings.volumes[String(id)]?.ranges;
     const items =
       volume === 0
-        ? seriesChapters(everything, ranges)
-        : volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
+        ? seriesChapters(packable, ranges)
+        : volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
     if (!items.length) return;
     const series = manga.data!.title;
     const suggested = `${safeFileName(series)} - ${volume === 0 ? 'Complete' : `Vol. ${String(volume).padStart(2, '0')}`}.cbz`;
@@ -153,7 +155,7 @@ export default function MangaPage() {
   async function packEachVolume() {
     if (packing) return;
     const ranges = settings.volumes[String(id)]?.ranges;
-    const list = summarizeVolumes(everything, ranges).map((v) => v.volume);
+    const list = summarizeVolumes(packable, ranges).map((v) => v.volume);
     if (!list.length) return;
     const series = manga.data!.title;
     if (
@@ -185,7 +187,7 @@ export default function MangaPage() {
           skipped++;
           continue;
         }
-        const items = volumeChapters(everything, ranges, volume).map((chapter) => ({ chapter, volume }));
+        const items = volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
         const batch = { index: i + 1, total: list.length };
         const missing = items.filter((it) => !it.chapter.isDownloaded).map((it) => it.chapter.id);
         if (missing.length) {
@@ -356,6 +358,16 @@ export default function MangaPage() {
   });
 
   const everything = chapters.data ?? []; // every chapter from every group, newest first (sourceOrder desc)
+  // Chapters that linked sources add (numbers this source lacks): used when packing .cbz files.
+  const linkedLists = useQueries({
+    queries: (settings.links[String(id)] ?? []).map((l) => ({ queryKey: ['chapters', l.mangaId], queryFn: () => Q.chapters(l.mangaId), staleTime: 60_000 })),
+  });
+  const linkedData = linkedLists.map((q) => q.data);
+  const packable = useMemo(
+    () => withLinkedChapters(everything, linkedData.filter((d): d is Chapter[] => !!d)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [everything, ...linkedData],
+  );
   const groups = useMemo(() => listGroups(everything), [everything]);
   const groupPref = settings.groups[String(id)];
   // `all` = the chapters of the chosen group (or everything when no group is chosen)
@@ -546,6 +558,14 @@ export default function MangaPage() {
               </a>
             )}
           </div>
+
+          <LinkedSources
+            id={id}
+            title={m.title}
+            sourceName={m.source?.displayName ?? 'this source'}
+            chapters={everything}
+            categoryIds={m.categories.nodes.map((c) => c.id)}
+          />
 
           <details className="reader-override">
             <summary>

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { GroupPref } from './groups';
+import type { LinkedSource } from './sourceLinks';
 import type { VolumeInfo } from './volumes';
 import type { PaceConfig, PacePreset } from './pacer';
 
@@ -24,6 +25,7 @@ export interface Settings extends ReaderPrefs {
   perManga: Record<string, Partial<ReaderPrefs>>;
   groups: Record<string, GroupPref>; // chosen scanlation group per manga
   volumes: Record<string, VolumeInfo>; // official volume map found for a manga
+  links: Record<string, LinkedSource[]>; // other sources carrying the same series, per manga
 }
 
 const KEY = 'mangadeck.settings';
@@ -42,6 +44,7 @@ const defaults: Settings = {
   perManga: {},
   groups: {},
   volumes: {},
+  links: {},
 };
 
 function load(): Settings {
@@ -94,6 +97,13 @@ export function setVolumeInfo(mangaId: number, info: VolumeInfo | null) {
   if (info === null) delete volumes[String(mangaId)];
   else volumes[String(mangaId)] = info;
   updateSettings({ volumes });
+}
+
+export function setLinks(mangaId: number, list: LinkedSource[]) {
+  const links = { ...state.links };
+  if (list.length === 0) delete links[String(mangaId)];
+  else links[String(mangaId)] = list;
+  updateSettings({ links });
 }
 
 export function useSettings(): Settings {

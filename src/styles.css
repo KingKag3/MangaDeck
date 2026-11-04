@@ -1781,6 +1781,24 @@ input[type='range'] {
   display: block;
 }
 
+.linked-sources {
+  margin-top: 6px;
+}
+.linked-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  min-width: 0;
+}
+.linked-row .grow {
+  min-width: 200px;
+}
+.linked-hits {
+  margin-top: 10px;
+}
 .history {
   margin-top: 26px;
 }

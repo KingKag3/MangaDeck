@@ -111,6 +111,16 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   validation, fails quietly) and `findVolumeRule` checks them before the built-in rules. `npm run volumes:import` (`-- --dry`
   to preview) copies approved rows into `volumeRules.json` so git keeps them; run it with `volumes:export` before committing.
   Free tier: 500 MB, project pauses after ~1 week idle (Send then fails with a message; built-in rules are unaffected).
+- **Other sources** (linked sources): Suwayomi ties a manga entry to one source, so the same series on another source is a
+  separate entry. `LinkedSources` (an "Other sources" panel on the manga page) searches the English sources and links entries
+  (`settings.links[mangaId] = [{ mangaId, title, source }]`, per browser). Chapters match by chapter number (`sourceLinks.ts`:
+  `missingFromLinked`, `findAltChapter`, `withLinkedChapters`; unnumbered chapters never match). Linked chapters: (1) "Download N
+  missing" starts a paced job on the linked entry; (2) `.cbz` volume/series/each-volume packing uses `packable`, the main chapters
+  plus what linked sources add; (3) `pacer.ts` `tryLinkedSources()` runs when a chapter fails 3 times in a row, downloads the same
+  chapter number from a linked source and logs it in the history as "from <source>"; (4) **Move here** (`migrate.ts`) makes a linked
+  entry the main one: joins the library in the same categories, marks chapters up to the furthest one read as read, carries
+  bookmarks, copies volumes and reader options, removes the old entry from the library (downloads kept) and keeps it linked as a
+  fallback. Linking calls `refreshManga` on the other entry so its chapter list exists.
 - **Download history**: `history.ts` keeps a log of finished and failed downloads in `mangadeck.history` (newest first, capped at
   500, per browser; Suwayomi itself only knows its current queue). `logDownload()` is called from `pacer.ts` (one entry per
   paced chapter, plus one when a chapter fails 3 times in a row) and from the `.cbz` exports in `MangaPage` (volume, whole

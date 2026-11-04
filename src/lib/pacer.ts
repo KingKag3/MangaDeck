@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { M, Q } from '../api/queries';
 import { chapterLabel } from './format';
 import { logDownload } from './history';
+import { findAltChapter } from './sourceLinks';
 import { getSettings } from './settings';
 
 /* ---------- Timing (pure, so it can be tested) ---------- */
@@ -265,6 +266,19 @@ async function step(id: string) {
   } else {
     const failStreak = job.failStreak + 1;
     if (failStreak >= MAX_FAIL_STREAK) {
+      // This source keeps failing: try the same chapter number on a linked source before giving up.
+      const alt = await tryLinkedSources(job.mangaId, next, ac.signal);
+      job = jobs.find((j) => j.id === id);
+      if (!job || job.state !== 'running') return;
+      if (alt) {
+        logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: true, note: `from ${alt.source} (this source failed)` });
+        const done = job.done + 1;
+        const queue = job.queue.slice(1);
+        patch(id, { queue, done, failStreak: 0, current: undefined });
+        if (queue.length === 0) patch(id, { state: 'done' });
+        else await waitFor(id, waitMs(cfg, done));
+        return;
+      }
       logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: false, note: `failed ${MAX_FAIL_STREAK} times in a row` });
       patch(id, {
         state: 'paused',
@@ -278,6 +292,27 @@ async function step(id: string) {
     patch(id, { failStreak, current: undefined, note: `Download failed. Trying again in ${formatDuration(wait)}.` });
     await waitFor(id, wait);
   }
+}
+
+/**
+ * Download chapter `chapterId` of `mangaId` from one of the manga's linked sources instead (same chapter number).
+ * Returns the source that had it, or null when no linked source could.
+ */
+async function tryLinkedSources(mangaId: number, chapterId: number, signal: AbortSignal): Promise<{ source: string } | null> {
+  const links = getSettings().links[String(mangaId)] ?? [];
+  if (links.length === 0) return null;
+  try {
+    const own = (await Q.chapters(mangaId)).find((c) => c.id === chapterId);
+    if (!own || own.chapterNumber < 0) return null;
+    for (const l of links) {
+      const alt = findAltChapter(await Q.chapters(l.mangaId), own.chapterNumber);
+      if (!alt) continue;
+      if (alt.isDownloaded || (await downloadOne(alt.id, signal)) === 'ok') return { source: l.source };
+    }
+  } catch {
+    /* aborted or the server is unreachable: treat as not found */
+  }
+  return null;
 }
 
 let started = false;
