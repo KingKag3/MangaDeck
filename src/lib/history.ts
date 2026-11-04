@@ -17,6 +17,8 @@ export interface HistoryEntry {
   ok: boolean;
   /** Extra detail: "12 chapters, 240 pages", or why it failed. */
   note?: string;
+  /** Where a file went. Browsers hide full paths, so this is a file or folder name, or "Downloads folder". */
+  where?: string;
 }
 
 export const HISTORY_KEY = 'mangadeck.history';
@@ -42,7 +44,8 @@ export function parseHistory(raw: string | null | undefined): HistoryEntry[] {
           typeof e.mangaId === 'number' &&
           typeof e.title === 'string' &&
           typeof e.label === 'string' &&
-          typeof e.ok === 'boolean',
+          typeof e.ok === 'boolean' &&
+          (e.where === undefined || typeof e.where === 'string'),
       )
       .slice(0, HISTORY_MAX);
   } catch {

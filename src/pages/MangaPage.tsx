@@ -127,6 +127,7 @@ export default function MangaPage() {
         label: volume === 0 ? 'Complete series .cbz' : `Vol. ${String(volume).padStart(2, '0')} .cbz`,
         ok: true,
         note: `${items.length} chapters, ${pages} pages`,
+        where: handle ? `${handle.name} (where you chose to save it)` : `${fileName} in your browser's Downloads folder`,
       });
     } catch (e) {
       if (writable) await writable.abort().catch(() => undefined);
@@ -208,7 +209,11 @@ export default function MangaPage() {
           if (writable) await writable.close();
           else if (blob) saveBlob(blob, fileName);
           saved++;
-          logDownload({ kind: 'volume', mangaId: id, title: series, label: `Vol. ${String(volume).padStart(2, '0')} .cbz`, ok: true, note: `${items.length} chapters` });
+          logDownload({ kind: 'volume', mangaId: id, title: series, label: `Vol. ${String(volume).padStart(2, '0')} .cbz`,
+            ok: true,
+            note: `${items.length} chapters`,
+            where: dir ? `${fileName} in the folder “${dir.name}” you picked` : `${fileName} in your browser's Downloads folder`,
+          });
         } catch (e) {
           // Do not leave a half-written (or empty) file behind: the next run would think it is done.
           if (writable) {

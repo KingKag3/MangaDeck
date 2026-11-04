@@ -142,6 +142,8 @@ export function saveBlob(blob: Blob, fileName: string) {
 /* ---------- Saving straight to disk (Chrome / Edge) ---------- */
 
 interface SaveHandle {
+  /** File name the user chose. Browsers never reveal the full path. */
+  name: string;
   createWritable(): Promise<{ write(d: Uint8Array): Promise<void>; close(): Promise<void>; abort(): Promise<void> }>;
 }
 
@@ -195,6 +197,8 @@ interface FileHandleLike {
 }
 
 export interface FolderHandle {
+  /** Folder name only; browsers never reveal the full path. */
+  name: string;
   getFileHandle(name: string, o?: { create?: boolean }): Promise<FileHandleLike>;
   removeEntry(name: string): Promise<void>;
 }

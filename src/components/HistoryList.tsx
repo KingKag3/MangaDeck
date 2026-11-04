@@ -42,6 +42,7 @@ export default function HistoryList() {
                     {h.label}
                     {h.note ? ` · ${h.note}` : ''}
                   </div>
+                  {h.where && <div className="muted small history-where">Saved: {h.where}</div>}
                 </div>
                 <span className="muted small">{timeAgo(h.at)}</span>
               </div>
