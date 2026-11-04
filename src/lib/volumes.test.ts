@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText, titleVariants } from './volumes';
+import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText, titleVariants, mergeNewVolumes } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -410,5 +410,35 @@ describe('parseVolumeRanges, one bullet per chapter ("Days 1: Title")', () => {
     ]);
     expect(r[0].titles).toEqual({ 1: 'The Legendary Hit Man', 2: 'Family Rules', 3: 'Mysterious Hero' });
     expect(r[1].titles).toEqual({ 4: 'China Invasion!', 5: 'Showtime' });
+  });
+});
+
+describe('mergeNewVolumes', () => {
+  const cur = [
+    { volume: 1, first: 1, last: 5 },
+    { volume: 2, first: 6, last: 10 },
+  ];
+
+  it('adds only volumes numbered above the last saved one', () => {
+    const found = [
+      { volume: 1, first: 1, last: 4 }, // a different reading of volume 1: ignored, ours stays
+      { volume: 2, first: 6, last: 10 },
+      { volume: 3, first: 11, last: 16 },
+      { volume: 4, first: 17, last: 21 },
+    ];
+    const r = mergeNewVolumes(cur, found);
+    expect(r.added).toBe(2);
+    expect(r.ranges.map((x) => [x.volume, x.first, x.last])).toEqual([
+      [1, 1, 5],
+      [2, 6, 10],
+      [3, 11, 16],
+      [4, 17, 21],
+    ]);
+  });
+
+  it('adds nothing when there is nothing newer, and leaves the saved list as it was', () => {
+    const r = mergeNewVolumes(cur, [{ volume: 2, first: 6, last: 12 }]);
+    expect(r.added).toBe(0);
+    expect(r.ranges).toEqual(cur);
   });
 });

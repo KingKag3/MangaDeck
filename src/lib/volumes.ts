@@ -310,9 +310,9 @@ export function titleVariants(title: string): string[] {
 }
 
 /** Find the "List of <title> chapters/volumes" page on Wikipedia and read its volumes. Returns null if none is usable. */
-export async function lookupVolumes(title: string): Promise<VolumeInfo | null> {
-  // Series we already worked out by hand come first.
-  const rule = findVolumeRule(title);
+export async function lookupVolumes(title: string, opts: { skipRules?: boolean } = {}): Promise<VolumeInfo | null> {
+  // Series we already worked out by hand come first (unless we are looking for volumes newer than that list).
+  const rule = opts.skipRules ? null : findVolumeRule(title);
   if (rule) return { ...rule, v: PARSER_VERSION };
 
   const variants = titleVariants(title);
@@ -490,4 +490,14 @@ export function parseVolumeText(text: string): VolumeRange[] {
 /** One line per volume, the way the editor shows and accepts them. */
 export function volumeRangesToText(ranges: VolumeRange[]): string {
   return ranges.map((r) => `${r.volume}: ${r.first}-${r.last}`).join('\n');
+}
+
+/**
+ * Add volumes that came out since `current` was saved: volumes of `found` numbered above the last one in `current`.
+ * Nothing already in `current` is changed (it may have been entered or corrected by hand).
+ */
+export function mergeNewVolumes(current: VolumeRange[], found: VolumeRange[]): { ranges: VolumeRange[]; added: number } {
+  const top = current.reduce((m, r) => Math.max(m, r.volume), 0);
+  const fresh = found.filter((r) => r.volume > top);
+  return { ranges: [...current, ...fresh].sort((a, b) => a.volume - b.volume), added: fresh.length };
 }

@@ -7,7 +7,7 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { PARSER_VERSION, lookupVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
+import { PARSER_VERSION, lookupVolumes, mergeNewVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { markSeen } from '../lib/fresh';
 import { chooseSync, pushVolumeMeta, saveVolumes, volumeInfoFromMeta } from '../lib/volumeStore';
@@ -218,6 +218,24 @@ export default function MangaPage() {
     },
     onError: errorToast,
   });
+  // Look again for volumes released since the saved list. A list read from Wikipedia is simply replaced; one from the
+  // built-in rules or typed by hand only gets the newer volumes added, so nothing you corrected is lost.
+  const checkVolumes = useMutation({
+    mutationFn: () => lookupVolumes(manga.data!.title, { skipRules: true }),
+    onSuccess: (found) => {
+      const cur = settings.volumes[String(id)];
+      if (!found) return void toast('No volume list found online. Use “Edit volumes” to add the new volume by hand.', 'error');
+      if (!cur || cur.source === 'wikipedia') {
+        saveVolumes(id, found);
+        return void toast(`Updated: ${found.ranges.length} volumes`);
+      }
+      const { ranges, added } = mergeNewVolumes(cur.ranges, found.ranges);
+      if (!added) return void toast('No new volumes found yet');
+      saveVolumes(id, { ...cur, ranges });
+      toast(`Added ${added} new volume${added === 1 ? '' : 's'}`);
+    },
+    onError: errorToast,
+  });
   const [editVolumes, setEditVolumes] = useState(false);
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -339,6 +357,15 @@ export default function MangaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga.data, id]);
   const volumes = useMemo(() => summarizeVolumes(all, volumeInfo?.ranges), [all, volumeInfo]);
+  // The numbered chapters that no volume covers yet, e.g. "122–123", for the "Not in a volume yet" heading.
+  const unassignedRange = useMemo(() => {
+    if (volumes.length === 0) return '';
+    const nums = all.filter((c) => c.chapterNumber >= 0 && volumeOf(c, volumeInfo?.ranges) === null).map((c) => c.chapterNumber);
+    if (nums.length === 0) return '';
+    const lo = Math.min(...nums);
+    const hi = Math.max(...nums);
+    return lo === hi ? String(lo) : `${lo}–${hi}`;
+  }, [all, volumes, volumeInfo]);
   const activeVolume = volFilter !== null && volumes.some((v) => v.volume === volFilter) ? volFilter : null;
 
   const shown = useMemo(() => {
@@ -539,33 +566,40 @@ export default function MangaPage() {
             <button className={`btn ghost ${bookmarkedOnly ? 'on' : ''}`} onClick={() => setBookmarkedOnly(!bookmarkedOnly)}>
               Bookmarked
             </button>
-            {!volumeInfo && (
-              <button
-                className="btn ghost"
-                onClick={() => findVolumes.mutate()}
-                disabled={findVolumes.isPending}
-                title="Look up which chapters belong to each official volume (Wikipedia)"
-              >
-                {findVolumes.isPending ? 'Looking up…' : 'Find volumes'}
-              </button>
-            )}
-            {!volumeInfo && (
-              <button className="btn ghost" onClick={() => setEditVolumes(true)} title="Type or paste which chapters are in each volume">
-                Set volumes
-              </button>
-            )}
+            <button
+              className="btn ghost"
+              onClick={() => (volumeInfo ? checkVolumes.mutate() : findVolumes.mutate())}
+              disabled={findVolumes.isPending || checkVolumes.isPending}
+              title={volumeInfo ? 'Look for volumes released since this list was saved' : 'Look up which chapters belong to each official volume (Wikipedia)'}
+            >
+              {findVolumes.isPending || checkVolumes.isPending ? 'Looking up…' : volumeInfo ? 'Check for new volumes' : 'Find volumes'}
+            </button>
+            <button className="btn ghost" onClick={() => setEditVolumes(true)} title="Type or paste which chapters are in each volume">
+              {volumeInfo ? 'Edit volumes' : 'Set volumes'}
+            </button>
             {packing ? (
               <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
                 {packing.phase === 'downloading' ? 'Downloading' : 'Packing'} {packing.volume === 0 ? '' : `Vol. ${packing.volume}${packing.batch ? ` (${packing.batch.index} of ${packing.batch.total})` : ''} `}{packing.done}/{packing.total} · Cancel
               </button>
             ) : (
-              <button
-                className="btn ghost"
-                onClick={() => pack(0)}
-                title="Download every chapter as one .cbz (one copy per chapter, ordered by volume when known)"
-              >
-                ⬇ All as .cbz
-              </button>
+              <>
+                <button
+                  className="btn ghost"
+                  onClick={() => pack(0)}
+                  title="Download every chapter as one .cbz (one copy per chapter, ordered by volume when known)"
+                >
+                  ⬇ All as .cbz
+                </button>
+                {volumes.length > 0 && (
+                  <button
+                    className="btn ghost"
+                    onClick={packEachVolume}
+                    title="Save every volume as its own .cbz into a folder you pick (files already there are skipped, so it can resume)"
+                  >
+                    ⬇ Each volume as .cbz
+                  </button>
+                )}
+              </>
             )}
             <button className="btn ghost" onClick={() => setAsc(!asc)}>
               {asc ? '↑ Oldest first' : '↓ Newest first'}
@@ -640,28 +674,10 @@ export default function MangaPage() {
                       : ` · from Wikipedia (${volumeInfo.page})`}
               </span>
               <span className="row gap">
-                <button
-                  className="link-btn"
-                  onClick={packEachVolume}
-                  disabled={!!packing}
-                  title="Save every volume as its own .cbz into a folder you pick (files already there are skipped, so it can resume)"
-                >
-                  ⬇ Each volume as .cbz
-                </button>
                 {volumeInfo && (
-                  <>
-                  {volumeInfo.source === 'wikipedia' && (
-                    <button className="link-btn" onClick={() => findVolumes.mutate()} disabled={findVolumes.isPending}>
-                      {findVolumes.isPending ? 'Refreshing…' : 'Refresh'}
-                    </button>
-                  )}
-                  <button className="link-btn" onClick={() => setEditVolumes(true)}>
-                    Edit
-                  </button>
-                  <button className="link-btn" onClick={() => saveVolumes(id, null)}>
+                  <button className="link-btn" onClick={() => saveVolumes(id, null)} title="Forget these volumes (here and on the server)">
                     Remove
                   </button>
-                  </>
                 )}
               </span>
             </div>
@@ -723,7 +739,17 @@ export default function MangaPage() {
                 <Fragment key={c.id}>
                   {newVolume && (
                     <li className={`volume-divider ${volClass}`} style={volStyle}>
-                      <span>{vol === null ? 'Not in a volume yet' : `Volume ${vol}`}</span>
+                      <span>{vol === null ? `Not in a volume yet${unassignedRange ? ` · ch. ${unassignedRange}` : ''}` : `Volume ${vol}`}</span>
+                      {vol === null && (
+                        <span className="row gap">
+                          <button className="link-btn" onClick={() => checkVolumes.mutate()} disabled={checkVolumes.isPending}>
+                            Check for new volumes
+                          </button>
+                          <button className="link-btn" onClick={() => setEditVolumes(true)}>
+                            Edit volumes
+                          </button>
+                        </span>
+                      )}
                       {vol !== null && (
                         <span className="row gap">
                           <button
