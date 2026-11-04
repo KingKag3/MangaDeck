@@ -74,7 +74,11 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   **Tried and rejected** (do not redo): MangaDex (browsers are bot-challenged; through a Vite/nginx relay it works but
   licensed series have few volumes filled in; Solo Leveling had only vol 1), Kitsu (`volumeNumber` is a placeholder:
   every Solo Leveling chapter is volume 1), AniList/MyAnimeList (volume counts only), Amazon/BookWalker (no chapter
-  ranges, no free API, bot checks, no CORS).
+  ranges, no free API, bot checks, no CORS), MangaUpdates (`api.mangaupdates.com/v1`: reachable but CORS-blocked, so it
+  would need a relay; the series `status` text gives a volume count that lags, e.g. Dandadan "26 Volumes" vs 28 on
+  Wikipedia; release records rarely carry a volume, and where they do the numbers mix seasons, editions and spin-offs:
+  Solo Leveling shows "v1 c110"), Anime-Planet (no public API; a manga page is plain HTML that a server-side request can
+  fetch, but it only shows a volume/chapter count, with no per-volume contents; scraping it would also need a relay).
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
   `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.

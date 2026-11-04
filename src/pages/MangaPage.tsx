@@ -10,6 +10,7 @@ import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { markSeen } from '../lib/fresh';
+import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, volumeInfoFromMeta } from '../lib/volumeStore';
 import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
 import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
@@ -438,7 +439,7 @@ export default function MangaPage() {
           {m.genre?.length > 0 && (
             <div className="chips">
               {(allTags ? m.genre : m.genre.slice(0, TAG_LIMIT)).map((g) => (
-                <span key={g} className="chip">
+                <span key={g} className="chip tagged" style={{ ['--tc' as string]: tagColor(g) }}>
                   {g}
                 </span>
               ))}

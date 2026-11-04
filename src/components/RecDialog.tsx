@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { Recommendation } from '../lib/recommend';
+import { tagColor } from '../lib/tagColor';
 
 /** Details of a recommended title: synopsis, why it was suggested, and where to find it. */
 export default function RecDialog({ rec, onClose }: { rec: Recommendation; onClose: () => void }) {
@@ -26,7 +27,7 @@ export default function RecDialog({ rec, onClose }: { rec: Recommendation; onClo
             {rec.genres.length > 0 && (
               <div className="chips">
                 {rec.genres.map((g) => (
-                  <span key={g} className="chip">
+                  <span key={g} className="chip tagged" style={{ ['--tc' as string]: tagColor(g) }}>
                     {g}
                   </span>
                 ))}

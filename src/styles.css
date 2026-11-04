@@ -1855,3 +1855,11 @@ input[type='range'] {
 .volume-current {
   margin: 4px 0 8px;
 }
+
+/* ---------- Colour-coded genre tags ---------- */
+
+.chip.tagged {
+  color: var(--tc);
+  background: color-mix(in srgb, var(--tc) 15%, var(--surface-3));
+  border: 1px solid color-mix(in srgb, var(--tc) 38%, transparent);
+}
