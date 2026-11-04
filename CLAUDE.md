@@ -62,6 +62,12 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   `deleteMangaMeta`). The server copy follows the manga to every browser and address (5173 and 8080) and survives Docker
   rebuilds. On opening a manga the newest copy (`savedAt`) wins: pull when the browser has none, push when the server has
   none. Always save through `saveVolumes()`, not `setVolumeInfo()` directly (that one is only for pulling).
+  **Server size limit**: Suwayomi silently refuses (mutation returns `null`, no error, nothing stored) a manga meta value over
+  4,096 characters. `serverCopy()` keeps the copy under `META_LIMIT` (4,000) by dropping chapter titles first (and setting
+  `slim: true`), then release dates and ISBNs; the ranges are always kept. A browser that pulls a slim Wikipedia copy marks it
+  `v: 1` so the page re-reads the full details once. Do not add big fields to `VolumeInfo` without checking this.
+  Saving from the Edit volumes dialog keeps the dates, ISBNs and titles of volumes that are still in the list
+  (`keepExtras()`), and saving without a change does nothing (`sameRanges()`).
   **Rules** (`volumeRules.ts`): a built-in list of series no automatic source can read, checked before Wikipedia
   (`source: 'rule'`). To add one, set the volumes in the app, then copy the ranges into `VOLUME_RULES` with every title the
   sources use for that series.

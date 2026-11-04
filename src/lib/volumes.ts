@@ -22,6 +22,8 @@ export interface VolumeInfo {
   source: 'wikipedia' | 'manual' | 'rule';
   /** When it was saved (ms). The newest copy wins when the browser and the server disagree. */
   savedAt?: number;
+  /** The copy kept on the server had to leave out chapter titles (and maybe dates) to fit: refresh to get them back. */
+  slim?: boolean;
   /** Parser version that produced `ranges` (missing on lookups saved before versions existed). */
   v?: number;
   page: string;
@@ -522,4 +524,18 @@ export function mergeNewVolumes(current: VolumeRange[], found: VolumeRange[]): {
   const top = current.reduce((m, r) => Math.max(m, r.volume), 0);
   const fresh = found.filter((r) => r.volume > top);
   return { ranges: [...current, ...fresh].sort((a, b) => a.volume - b.volume), added: fresh.length };
+}
+
+/** Carry the release date, ISBN and chapter titles of volumes you kept over to the edited list. */
+export function keepExtras(edited: VolumeRange[], old: VolumeRange[] | undefined): VolumeRange[] {
+  if (!old) return edited;
+  return edited.map((r) => {
+    const o = old.find((x) => x.volume === r.volume);
+    return o ? { ...r, ...(o.released ? { released: o.released } : {}), ...(o.isbn ? { isbn: o.isbn } : {}), ...(o.titles ? { titles: o.titles } : {}) } : r;
+  });
+}
+
+/** Same volumes with the same first and last chapters (extras like dates are not compared). */
+export function sameRanges(a: VolumeRange[] | undefined, b: VolumeRange[]): boolean {
+  return !!a && a.length === b.length && a.every((r, i) => r.volume === b[i].volume && r.first === b[i].first && r.last === b[i].last);
 }

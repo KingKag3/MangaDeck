@@ -1851,3 +1851,7 @@ input[type='range'] {
   border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line));
   border-radius: var(--radius);
 }
+
+.volume-current {
+  margin: 4px 0 8px;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseSync, volumeInfoFromMeta, META_KEY } from './volumeStore';
+import { chooseSync, volumeInfoFromMeta, META_KEY, META_LIMIT, serverCopy } from './volumeStore';
 import { findVolumeRule } from './volumeRules';
 import type { VolumeInfo } from './volumes';
 
@@ -55,5 +55,45 @@ describe('findVolumeRule', () => {
     const a = findVolumeRule('Solo Leveling')!;
     a.ranges[0].last = 999;
     expect(findVolumeRule('Solo Leveling')!.ranges[0].last).toBe(12);
+  });
+});
+
+describe('serverCopy', () => {
+  const big = (volumes: number, titlesPer: number): VolumeInfo => ({
+    source: 'wikipedia',
+    page: 'Gachiakuta',
+    savedAt: 1,
+    ranges: Array.from({ length: volumes }, (_, i) => ({
+      volume: i + 1,
+      first: i * 10 + 1,
+      last: i * 10 + 10,
+      released: '2024-01-16',
+      isbn: '978-4-06-527922-9',
+      titles: Object.fromEntries(Array.from({ length: titlesPer }, (_, k) => [i * 10 + k + 1, `A chapter title number ${k + 1}`])),
+    })),
+  });
+
+  it('keeps everything when it fits', () => {
+    const v = serverCopy(big(3, 4))!;
+    expect(v.length).toBeLessThanOrEqual(META_LIMIT);
+    expect(JSON.parse(v).ranges[0].titles).toBeDefined();
+    expect(JSON.parse(v).slim).toBeUndefined();
+  });
+
+  it('drops the chapter titles first (and says so) when the whole thing is too long', () => {
+    const v = JSON.parse(serverCopy(big(19, 9))!);
+    expect(v.slim).toBe(true);
+    expect(v.ranges).toHaveLength(19);
+    expect(v.ranges[0].titles).toBeUndefined();
+    expect(v.ranges[0].released).toBe('2024-01-16');
+  });
+
+  it('then drops dates and ISBNs, but never the volume ranges, and gives up only past the limit', () => {
+    const s = serverCopy(big(60, 0))!;
+    const v = JSON.parse(s);
+    expect(s.length).toBeLessThanOrEqual(META_LIMIT);
+    expect(v.ranges).toHaveLength(60);
+    expect(v.ranges[0]).toEqual({ volume: 1, first: 1, last: 10 });
+    expect(serverCopy(big(400, 0))).toBeNull();
   });
 });

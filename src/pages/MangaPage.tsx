@@ -7,7 +7,7 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { PARSER_VERSION, lookupVolumes, mergeNewVolumes, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
+import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { markSeen } from '../lib/fresh';
 import { chooseSync, pushVolumeMeta, saveVolumes, volumeInfoFromMeta } from '../lib/volumeStore';
@@ -351,7 +351,8 @@ export default function MangaPage() {
     if (!manga.data) return;
     const remote = volumeInfoFromMeta(manga.data.meta);
     const action = chooseSync(volumeInfo, remote);
-    if (action === 'pull' && remote) setVolumeInfo(id, remote);
+    // A shortened Wikipedia copy is marked old (v: 1), so the page quietly reads the full details again, once.
+    if (action === 'pull' && remote) setVolumeInfo(id, remote.slim && remote.source === 'wikipedia' ? { ...remote, v: 1 } : remote);
     else if (action === 'push' && volumeInfo) pushVolumeMeta(id, volumeInfo);
     // Only when the manga loads: saving from the page already pushes by itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -575,7 +576,7 @@ export default function MangaPage() {
               {findVolumes.isPending || checkVolumes.isPending ? 'Looking up…' : volumeInfo ? 'Check for new volumes' : 'Find volumes'}
             </button>
             <button className="btn ghost" onClick={() => setEditVolumes(true)} title="Type or paste which chapters are in each volume">
-              {volumeInfo ? 'Edit volumes' : 'Set volumes'}
+              {volumeInfo ? `Edit volumes (${volumeInfo.ranges.length})` : 'Set volumes'}
             </button>
             {packing ? (
               <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
@@ -829,10 +830,14 @@ export default function MangaPage() {
         <VolumeDialog
           title={m.title}
           initial={volumeInfo?.ranges}
+          current={volumeInfo ? { source: volumeInfo.source, page: volumeInfo.page } : undefined}
           onClose={() => setEditVolumes(false)}
           onSave={(ranges) => {
-            saveVolumes(id, { source: 'manual', v: PARSER_VERSION, page: 'entered by hand', ranges });
             setEditVolumes(false);
+            // Opened and saved without changing anything: leave the list (and where it came from) as it is.
+            if (sameRanges(volumeInfo?.ranges, ranges)) return void toast('No changes');
+            // A changed list counts as hand-made, so lookups never overwrite it; dates, ISBNs and titles of kept volumes stay.
+            saveVolumes(id, { source: 'manual', v: PARSER_VERSION, page: 'entered by hand', ranges: keepExtras(ranges, volumeInfo?.ranges) });
             toast(`Saved ${ranges.length} volume${ranges.length === 1 ? '' : 's'}`);
           }}
         />

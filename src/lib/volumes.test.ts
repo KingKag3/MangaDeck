@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText, titleVariants, mergeNewVolumes } from './volumes';
+import { parseVolumeRanges, parseVolumeText, summarizeVolumes, seriesChapters, volumeChapters, volumeOf, volumeRangesToText, titleVariants, mergeNewVolumes, keepExtras, sameRanges } from './volumes';
 import type { Chapter } from '../api/queries';
 
 const WIKI = `
@@ -482,5 +482,36 @@ describe('parseVolumeRanges, bullets that start with the chapter number ("* 162.
     ]);
     expect(r[0].titles).toEqual({ 1: 'The Sphere', 2: 'Quasi Living Things', 3: 'Imbued', 4: 'The Ground' });
     expect(r[1].titles?.[5.2]).toBe('Extra');
+  });
+});
+
+describe('keepExtras and sameRanges', () => {
+  const old = [
+    { volume: 1, first: 1, last: 4, released: '2022-05-17', isbn: '978-4-06-527922-9', titles: { 1: 'The Sphere' } },
+    { volume: 2, first: 5, last: 13, released: '2022-08-09' },
+  ];
+
+  it('keeps the date, ISBN and titles of a volume that is still in the list, even with new chapter numbers', () => {
+    const edited = [
+      { volume: 1, first: 1, last: 5 }, // chapters corrected
+      { volume: 2, first: 6, last: 13 },
+      { volume: 3, first: 14, last: 22 }, // a new volume has nothing to keep
+    ];
+    const r = keepExtras(edited, old);
+    expect(r[0]).toEqual({ volume: 1, first: 1, last: 5, released: '2022-05-17', isbn: '978-4-06-527922-9', titles: { 1: 'The Sphere' } });
+    expect(r[1].released).toBe('2022-08-09');
+    expect(r[2]).toEqual({ volume: 3, first: 14, last: 22 });
+  });
+
+  it('drops the extras of a volume that was deleted, and does nothing without an old list', () => {
+    expect(keepExtras([{ volume: 2, first: 5, last: 13 }], old).map((r) => r.volume)).toEqual([2]);
+    expect(keepExtras([{ volume: 1, first: 1, last: 2 }], undefined)).toEqual([{ volume: 1, first: 1, last: 2 }]);
+  });
+
+  it('sameRanges ignores dates and titles but notices any change in volume or chapters', () => {
+    expect(sameRanges(old, [{ volume: 1, first: 1, last: 4 }, { volume: 2, first: 5, last: 13 }])).toBe(true);
+    expect(sameRanges(old, [{ volume: 1, first: 1, last: 4 }, { volume: 2, first: 5, last: 14 }])).toBe(false);
+    expect(sameRanges(old, [{ volume: 1, first: 1, last: 4 }])).toBe(false);
+    expect(sameRanges(undefined, [])).toBe(false);
   });
 });

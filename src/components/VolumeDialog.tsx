@@ -9,11 +9,14 @@ import { importVolumesFromWiki } from '../lib/wikiImport';
 export default function VolumeDialog({
   title,
   initial,
+  current,
   onSave,
   onClose,
 }: {
   title: string;
   initial: VolumeRange[] | undefined;
+  /** Where the volumes in the box came from, when there are some. */
+  current?: { source: 'wikipedia' | 'manual' | 'rule'; page: string };
   onSave: (ranges: VolumeRange[]) => void;
   onClose: () => void;
 }) {
@@ -47,6 +50,17 @@ export default function VolumeDialog({
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal volume-dialog" role="dialog" aria-modal="true" aria-label="Set volumes">
         <h2>Volumes for {title}</h2>
+        {current && initial && (
+          <p className="small volume-current">
+            Now: <b>{initial.length}</b> volume{initial.length === 1 ? '' : 's'},{' '}
+            {current.source === 'manual'
+              ? 'entered by hand'
+              : current.source === 'rule'
+                ? `from the built-in list (${current.page})`
+                : `from Wikipedia (${current.page})`}
+            . Change a line to correct it; the dates and chapter titles of volumes you keep stay.
+          </p>
+        )}
         <p className="muted small">
           One line per volume, like <code>1: 0-12</code> and <code>2: 13-26</code>. Or import them from a wiki link (a Wikipedia list, or one volume page of a Fandom wiki: the other volumes are
           followed automatically), or paste a volume list copied from any page and the chapter numbers are read out of it.
