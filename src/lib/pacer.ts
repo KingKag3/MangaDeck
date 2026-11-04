@@ -78,7 +78,12 @@ export const sleep = (ms: number, signal?: AbortSignal) =>
  * Put one chapter in Suwayomi's queue and wait until the server has it. Returns 'failed' when the server gives up
  * on it (3 tries) or it takes longer than 10 minutes. Aborting removes it from the queue again.
  */
+/** Chapters whose download Mangadeck itself drives and logs (paced jobs, .cbz packing); the queue watcher skips them. */
+export const handledIds = new Set<number>();
+
 export async function downloadOne(id: number, signal?: AbortSignal, onSeen?: (label: string) => void): Promise<'ok' | 'failed'> {
+  if (handledIds.size > 2000) handledIds.clear();
+  handledIds.add(id);
   await M.enqueueDownloads([id]);
   await M.startDownloader(); // safe: the queue is not empty now
   const started = Date.now();

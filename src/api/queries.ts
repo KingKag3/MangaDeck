@@ -178,6 +178,12 @@ export const Q = {
     return d.chapters.nodes;
   },
 
+  /** Whether one chapter is on the server's disk now (a chapter that left the download queue either finished or was removed). */
+  async chapterDownloaded(id: number): Promise<boolean> {
+    const d = await gql(`query($id: Int!) { chapter(id: $id) { isDownloaded } }`, { id });
+    return !!d.chapter?.isDownloaded;
+  },
+
   async updates(first = 150): Promise<UpdateChapter[]> {
     const d = await gql(
       `query($first: Int) {

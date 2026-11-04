@@ -9,7 +9,16 @@ const SHOWN = 30;
 export default function HistoryList() {
   const entries = useHistory();
   const [all, setAll] = useState(false);
-  if (entries.length === 0) return null;
+  if (entries.length === 0) {
+    return (
+      <section className="paced history">
+        <div className="row gap paced-head">
+          <h2>History</h2>
+        </div>
+        <p className="muted small">Nothing yet. Chapters and .cbz files you download from now on are listed here, and stay after they leave the queue.</p>
+      </section>
+    );
+  }
   const shown = all ? entries : entries.slice(0, SHOWN);
 
   let lastDay = '';
