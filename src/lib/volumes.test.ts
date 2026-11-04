@@ -442,3 +442,45 @@ describe('mergeNewVolumes', () => {
     expect(r.ranges).toEqual(cur);
   });
 });
+
+describe('titleVariants, shouted titles', () => {
+  it('adds a normally capitalised form of an ALL CAPS title', () => {
+    expect(titleVariants('GACHIAKUTA')).toEqual(['GACHIAKUTA', 'Gachiakuta']);
+    expect(titleVariants('MY HERO ACADEMIA')).toEqual(['MY HERO ACADEMIA', 'My Hero Academia']);
+  });
+
+  it('leaves mixed-case titles alone and keeps the subtitle split working', () => {
+    expect(titleVariants('Spy x Family')).toEqual(['Spy x Family']);
+    expect(titleVariants('RE:ZERO - STARTING LIFE')).toEqual(['RE:ZERO - STARTING LIFE', 'Re:Zero - Starting Life', 'RE:ZERO', 'Re:Zero']);
+  });
+});
+
+describe('parseVolumeRanges, bullets that start with the chapter number ("* 162. Title")', () => {
+  const page = `{{Graphic novel list
+| VolumeNumber = 1
+| ChapterListCol1 =
+* 1. {{Nihongo|"The Sphere"|天界|Tenkai}}
+* 2. {{Nihongo|"Quasi Living Things"|x|y}}
+| ChapterListCol2 =
+* 3. {{Nihongo|"Imbued"|x|y}}
+* 4. "The Ground"
+}}
+{{Graphic novel list
+| VolumeNumber = 2
+| ChapterListCol1 =
+* 5. {{Nihongo|"Interpersonal Relations"|x|y}}
+* 5.2. {{Nihongo|"Extra"|x|y}}
+| ChapterListCol2 =
+* 6. "Plain title"
+}}`;
+
+  it('reads the numbers, decimal chapters and titles, across columns', () => {
+    const r = parseVolumeRanges(page, 'GACHIAKUTA');
+    expect(r.map((x) => [x.volume, x.first, x.last])).toEqual([
+      [1, 1, 4],
+      [2, 5, 6],
+    ]);
+    expect(r[0].titles).toEqual({ 1: 'The Sphere', 2: 'Quasi Living Things', 3: 'Imbued', 4: 'The Ground' });
+    expect(r[1].titles?.[5.2]).toBe('Extra');
+  });
+});

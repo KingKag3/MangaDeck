@@ -135,6 +135,8 @@ const CHAPTER_WORDS = 'chapters?|ch|missions?|episodes?|acts?|stages?|rounds?|ca
 const CHAPTER_REF = new RegExp(String.raw`\b(?:${CHAPTER_WORDS})\.?\s*:?\s*(\d+(?:\.\d+)?)(?:\s*(?:[–—-]|to)\s*(\d+(?:\.\d+)?))?`, 'gi');
 /** A bullet that starts with the chapter word itself: "*Mission: 1–5" counts, "*Short Mission: 14" does not. */
 const CHAPTER_LINE = new RegExp(String.raw`^\s*[*#:]*\s*(?:${CHAPTER_WORDS})\b`, 'i');
+/** "* 162.2. Title": a bullet that starts with the chapter number and a dot or bracket. */
+const NUMBER_BULLET = /^\s*[*#:]+\s*(\d+(?:\.\d+)?)[.)]\s+(.+)$/;
 /** "*Days 12: Title": one chapter per bullet, with its number and title. */
 const CHAPTER_TITLE_LINE = new RegExp(String.raw`^\s*[*#:]*\s*(?:${CHAPTER_WORDS})\.?\s*(\d+(?:\.\d+)?)\s*:\s*(.+)$`, 'i');
 
@@ -164,6 +166,16 @@ function readVolume(params: Map<string, string>, volume: number, next: number): 
           const m = CHAPTER_TITLE_LINE.exec(l);
           const t = m && chapterTitle(m[2]);
           if (m && t) titles[parseFloat(m[1])] = t;
+        }
+        // Or just a number and a dot ("* 162. Title"), with no chapter word at all.
+        for (const l of value.split('\n')) {
+          const m = NUMBER_BULLET.exec(l);
+          if (!m) continue;
+          const n = parseFloat(m[1]);
+          first = Math.min(first, n);
+          last = Math.max(last, n);
+          const t = chapterTitle(m[2]);
+          if (t) titles[n] = t;
         }
         const text = plain(value)
           .split('\n')
@@ -300,12 +312,19 @@ async function wikitext(page: string): Promise<{ title: string; text: string } |
  * the Wikipedia page name does not have.
  */
 export function titleVariants(title: string): string[] {
-  const out = [title];
-  for (const sep of [' - ', ' – ', ' — ', ': ', ' (']) {
-    const i = title.indexOf(sep);
-    if (i > 2) out.push(title.slice(0, i));
+  // Some sources shout the title ("GACHIAKUTA"); Wikipedia's page is "Gachiakuta".
+  const shouted = /[A-Z]/.test(title) && title === title.toUpperCase();
+  const bases = shouted
+    ? [title, title.toLowerCase().replace(/(^|[\s:(-])([a-z])/g, (_m, p: string, c: string) => p + c.toUpperCase())]
+    : [title];
+  const out = [...bases];
+  for (const base of bases) {
+    for (const sep of [' - ', ' – ', ' — ', ': ', ' (']) {
+      const i = base.indexOf(sep);
+      if (i > 2) out.push(base.slice(0, i));
+    }
+    out.push(base.replace(/\s*\([^)]*\)\s*/g, ' '));
   }
-  out.push(title.replace(/\s*\([^)]*\)\s*/g, ' '));
   return [...new Set(out.map((s) => s.trim()).filter((s) => s.length > 2))];
 }
 
@@ -330,6 +349,9 @@ export async function lookupVolumes(title: string, opts: { skipRules?: boolean }
       if (exact || (v === title && norm(hit.title).includes(norm(v)))) candidates.push(hit.title);
     }
   }
+
+  // Last, the series' own article: many have no separate list page and keep the volume tables themselves.
+  candidates.push(...variants.filter((v) => norm(v) === norm(title)));
 
   for (const c of [...new Set(candidates)]) {
     const page = await wikitext(c);
