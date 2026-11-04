@@ -30,6 +30,17 @@ describe('volumePagePattern', () => {
     expect(volumePagePattern('Light Novel Vol. 7')!.build(8)).toBe('Light Novel Vol. 8');
   });
 
+  it('keeps the padding of a padded page name and offers the other spelling for volumes 1–9', () => {
+    const p = volumePagePattern('Manga Volume 06')!;
+    expect(p.n).toBe(6);
+    expect(p.build(7)).toBe('Manga Volume 07');
+    expect(p.build(12)).toBe('Manga Volume 12');
+    expect(p.builds(3)).toEqual(['Manga Volume 03', 'Manga Volume 3']);
+    expect(p.builds(12)).toEqual(['Manga Volume 12']);
+    const plain = volumePagePattern('Manga Volume 1')!;
+    expect(plain.builds(2)).toEqual(['Manga Volume 2', 'Manga Volume 02']);
+  });
+
   it('is null for pages that are not a numbered volume', () => {
     expect(volumePagePattern('Manga')).toBeNull();
     expect(volumePagePattern('List of volumes')).toBeNull();

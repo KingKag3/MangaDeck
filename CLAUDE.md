@@ -77,7 +77,22 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   ranges, no free API, bot checks, no CORS), MangaUpdates (`api.mangaupdates.com/v1`: reachable but CORS-blocked, so it
   would need a relay; the series `status` text gives a volume count that lags, e.g. Dandadan "26 Volumes" vs 28 on
   Wikipedia; release records rarely carry a volume, and where they do the numbers mix seasons, editions and spin-offs:
-  Solo Leveling shows "v1 c110"), Anime-Planet (no public API; a manga page is plain HTML that a server-side request can
+  Solo Leveling shows "v1 c110"). As an *update* signal it was never ahead of the sources: across 14 library titles its
+  `latest_chapter` was equal or behind (Dandadan/Chainsaw Man/Mob Psycho/Kagurabachi equal, Gachiakuta 86 vs 173), and
+  3 of 14 title searches landed on the wrong entry (a doujinshi, a novel, a different "Overgeared"). Releases cannot be asked
+  for by series id (`stype: "series"` returns 0), only by title text (100 per page, mixed spin-offs), and their volume
+  numbers do not form real volumes: Kaiju No. 8 gives overlapping ranges (1: ch 0–10, 2: ch 5–13, real 1–7 and 8–17), Solo
+  Leveling gives 1: 0–130 and 2: 111–152, Dandadan/Gachiakuta/Spy x Family have none. Do not use it as a volume fallback;
+  at most it gives a volume count. Manhwa are the usual gap: their Wikipedia articles ("The Boxer (manhwa)", "Lookism (manhwa)",
+  "Noblesse (manhwa)", also Solo Leveling) have volume tables with dates and ISBNs but empty chapter lists, so no automatic
+  source has their chapter ranges; trying "(manhwa)" article names finds the tables but never any ranges (tested, not worth
+  the extra requests). Use Edit volumes or the wiki-link import. **MangaBaka** (`api.mangabaka.org`, OpenAPI at
+  `mangabaka.org/api.json`, CORS is open so no relay is needed): the most promising one. `GET /v1/series/search?q=` gives
+  `final_volume` and `total_chapters`, and `GET /v1/series/{id}/works?page=N` (default page size; `limit=100` returns
+  nothing) lists the books with release date and ISBN. Each work has `inc_chapters` and `part_of_volume`, which would be
+  the chapter-to-volume map, but they were empty on all ~600 books checked across 18 series (The Boxer, Solo Leveling,
+  Gachiakuta, One Piece, Berserk, Frieren …). Worth re-checking later: users can submit data there. Meanwhile it could
+  supply a volume count plus per-volume dates and ISBNs (The Boxer: 13 volumes, more than Wikipedia's 11). Anime-Planet (no public API; a manga page is plain HTML that a server-side request can
   fetch, but it only shows a volume/chapter count, with no per-volume contents; scraping it would also need a relay).
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.

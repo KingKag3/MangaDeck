@@ -35,11 +35,21 @@ export function parseWikiUrl(raw: string): WikiTarget | null {
   return { api, title };
 }
 
-/** "Manga Volume 3" → how to build the title of volume N ("Manga Volume " + N), and which volume this is. */
-export function volumePagePattern(title: string): { build: (n: number) => string; n: number } | null {
+/**
+ * "Manga Volume 3" → how to build the title of volume N ("Manga Volume " + N), and which volume this is.
+ * Some wikis pad the numbers ("Manga Volume 03"): the padding of the page you gave is kept, and for volumes 1–9
+ * `builds` also offers the other spelling, in case only some pages are padded.
+ */
+export function volumePagePattern(title: string): { build: (n: number) => string; builds: (n: number) => string[]; n: number } | null {
   const m = /^(.*?)(\s*(?:volume|vol\.?)\s*)(\d+)\s*$/i.exec(title.trim());
   if (!m) return null;
-  return { build: (n) => `${m[1]}${m[2]}${n}`, n: parseInt(m[3], 10) };
+  const width = m[3].length > 1 && m[3].startsWith('0') ? m[3].length : 0;
+  const name = (n: number, pad: number) => `${m[1]}${m[2]}${pad ? String(n).padStart(pad, '0') : n}`;
+  return {
+    build: (n) => name(n, width),
+    builds: (n) => (n < 10 ? [name(n, width), name(n, width ? 0 : 2)] : [name(n, width)]),
+    n: parseInt(m[3], 10),
+  };
 }
 
 /** The part of a page under a "Chapters" heading, or null. */
@@ -98,7 +108,15 @@ export async function importVolumesFromWiki(
     let misses = 0;
     for (let start = 1; start <= MAX_VOLUMES && misses < 2; start += BATCH) {
       const batch = Array.from({ length: BATCH }, (_, k) => start + k);
-      const pages = await Promise.all(batch.map((n) => fetchWikitext(target.api, pattern.build(n)).catch(() => null)));
+      const pages = await Promise.all(
+        batch.map(async (n) => {
+          for (const name of pattern.builds(n)) {
+            const page = await fetchWikitext(target.api, name).catch(() => null);
+            if (page) return page;
+          }
+          return null;
+        }),
+      );
       for (const [k, page] of pages.entries()) {
         if (misses >= 2) break;
         if (!page) {
