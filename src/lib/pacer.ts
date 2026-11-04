@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { M, Q } from '../api/queries';
+import { chapterLabel } from './format';
+import { logDownload } from './history';
 import { getSettings } from './settings';
 
 /* ---------- Timing (pure, so it can be tested) ---------- */
@@ -75,7 +77,7 @@ export const sleep = (ms: number, signal?: AbortSignal) =>
  * Put one chapter in Suwayomi's queue and wait until the server has it. Returns 'failed' when the server gives up
  * on it (3 tries) or it takes longer than 10 minutes. Aborting removes it from the queue again.
  */
-export async function downloadOne(id: number, signal?: AbortSignal): Promise<'ok' | 'failed'> {
+export async function downloadOne(id: number, signal?: AbortSignal, onSeen?: (label: string) => void): Promise<'ok' | 'failed'> {
   await M.enqueueDownloads([id]);
   await M.startDownloader(); // safe: the queue is not empty now
   const started = Date.now();
@@ -84,6 +86,7 @@ export async function downloadOne(id: number, signal?: AbortSignal): Promise<'ok
       await sleep(2000, signal);
       const { queue } = await Q.downloads();
       const item = queue.find((i) => i.chapter.id === id);
+      if (item) onSeen?.(chapterLabel(item.chapter));
       if (!item) return 'ok';
       if ((item.state === 'ERROR' && item.tries >= 3) || Date.now() - started > 10 * 60_000) {
         await M.dequeueDownloads([id]).catch(() => undefined);
@@ -241,8 +244,9 @@ async function step(id: string) {
   aborts.set(id, ac);
   patch(id, { current: next, nextAt: undefined, note: undefined });
   let result: 'ok' | 'failed' = 'failed';
+  let label = 'Chapter';
   try {
-    result = await downloadOne(next, ac.signal);
+    result = await downloadOne(next, ac.signal, (l) => (label = l));
   } catch {
     if (ac.signal.aborted) return; // paused or cancelled: the state is already set
   } finally {
@@ -252,6 +256,7 @@ async function step(id: string) {
   job = jobs.find((j) => j.id === id);
   if (!job || job.state !== 'running') return;
   if (result === 'ok') {
+    logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: true });
     const done = job.done + 1;
     const queue = job.queue.slice(1);
     patch(id, { queue, done, failStreak: 0, current: undefined });
@@ -260,6 +265,7 @@ async function step(id: string) {
   } else {
     const failStreak = job.failStreak + 1;
     if (failStreak >= MAX_FAIL_STREAK) {
+      logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: false, note: `failed ${MAX_FAIL_STREAK} times in a row` });
       patch(id, {
         state: 'paused',
         failStreak: 0,

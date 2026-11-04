@@ -5,6 +5,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Spinner, errorToast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import PacedJobs from '../components/PacedJobs';
+import HistoryList from '../components/HistoryList';
 
 export default function DownloadsPage() {
   const qc = useQueryClient();
@@ -81,6 +82,8 @@ export default function DownloadsPage() {
           ))}
         </ul>
       )}
+
+      <HistoryList />
     </div>
   );
 }

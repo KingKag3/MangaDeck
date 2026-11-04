@@ -14,6 +14,7 @@ import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
 import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
+import { logDownload } from '../lib/history';
 import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
 import {
   effectivePrefs,
@@ -119,10 +120,28 @@ export default function MangaPage() {
       if (writable) await writable.close();
       else if (blob) saveBlob(blob, fileName);
       toast(`Saved ${writable ? suggested : fileName} (${items.length} chapters, ${pages} pages)`);
+      logDownload({
+        kind: volume === 0 ? 'series' : 'volume',
+        mangaId: id,
+        title: series,
+        label: volume === 0 ? 'Complete series .cbz' : `Vol. ${String(volume).padStart(2, '0')} .cbz`,
+        ok: true,
+        note: `${items.length} chapters, ${pages} pages`,
+      });
     } catch (e) {
       if (writable) await writable.abort().catch(() => undefined);
       if (abort.signal.aborted) toast('Cancelled');
-      else errorToast(e);
+      else {
+        errorToast(e);
+        logDownload({
+          kind: volume === 0 ? 'series' : 'volume',
+          mangaId: id,
+          title: series,
+          label: volume === 0 ? 'Complete series .cbz' : `Vol. ${String(volume).padStart(2, '0')} .cbz`,
+          ok: false,
+          note: e instanceof Error ? e.message : 'failed',
+        });
+      }
     } finally {
       packAbort.current = null;
       setPacking(null);
@@ -189,6 +208,7 @@ export default function MangaPage() {
           if (writable) await writable.close();
           else if (blob) saveBlob(blob, fileName);
           saved++;
+          logDownload({ kind: 'volume', mangaId: id, title: series, label: `Vol. ${String(volume).padStart(2, '0')} .cbz`, ok: true, note: `${items.length} chapters` });
         } catch (e) {
           // Do not leave a half-written (or empty) file behind: the next run would think it is done.
           if (writable) {

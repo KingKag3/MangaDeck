@@ -1781,6 +1781,31 @@ input[type='range'] {
   display: block;
 }
 
+.history {
+  margin-top: 26px;
+}
+.history-day {
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.history-row {
+  gap: 12px;
+  min-width: 0;
+}
+.history-mark {
+  width: 22px;
+  text-align: center;
+  font-weight: 700;
+  flex: none;
+}
+.history-mark.ok {
+  color: var(--ok, #4cc38a);
+}
+.history-mark.err {
+  color: var(--danger, #e5534b);
+}
+
 .grid-3 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

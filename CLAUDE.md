@@ -111,6 +111,10 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   validation, fails quietly) and `findVolumeRule` checks them before the built-in rules. `npm run volumes:import` (`-- --dry`
   to preview) copies approved rows into `volumeRules.json` so git keeps them; run it with `volumes:export` before committing.
   Free tier: 500 MB, project pauses after ~1 week idle (Send then fails with a message; built-in rules are unaffected).
+- **Download history**: `history.ts` keeps a log of finished and failed downloads in `mangadeck.history` (newest first, capped at
+  500, per browser; Suwayomi itself only knows its current queue). `logDownload()` is called from `pacer.ts` (one entry per
+  paced chapter, plus one when a chapter fails 3 times in a row) and from the `.cbz` exports in `MangaPage` (volume, whole
+  series, each-volume; failures too). Shown by `HistoryList` at the bottom of the Downloads page.
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
   `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.
