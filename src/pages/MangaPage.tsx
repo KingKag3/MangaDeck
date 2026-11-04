@@ -9,6 +9,7 @@ import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/forma
 import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
+import ShareDialog from '../components/ShareDialog';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
@@ -238,6 +239,7 @@ export default function MangaPage() {
     onError: errorToast,
   });
   const [editVolumes, setEditVolumes] = useState(false);
+  const [shareVolumes, setShareVolumes] = useState(false);
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -681,6 +683,11 @@ export default function MangaPage() {
                       : ` · from Wikipedia (${volumeInfo.page})`}
               </span>
               <span className="row gap">
+                {volumeInfo?.source === 'manual' && (
+                  <button className="link-btn" onClick={() => setShareVolumes(true)} title="Add this list to the shared one, so the series fills in for everyone">
+                    Share
+                  </button>
+                )}
                 {volumeInfo && (
                   <button className="link-btn" onClick={() => saveVolumes(id, null)} title="Forget these volumes (here and on the server)">
                     Remove
@@ -831,6 +838,8 @@ export default function MangaPage() {
           </ul>
         )}
       </section>
+
+      {shareVolumes && volumeInfo && <ShareDialog title={m.title} ranges={volumeInfo.ranges} onClose={() => setShareVolumes(false)} />}
 
       {editVolumes && (
         <VolumeDialog

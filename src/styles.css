@@ -1863,3 +1863,26 @@ input[type='range'] {
   background: color-mix(in srgb, var(--tc) 15%, var(--surface-3));
   border: 1px solid color-mix(in srgb, var(--tc) 38%, transparent);
 }
+
+/* ---------- Share volumes ---------- */
+
+.share-dialog {
+  width: min(560px, 100%);
+}
+.share-actions {
+  margin-top: 12px;
+}
+.share-actions .btn {
+  margin-top: 0;
+}
+.share-problems {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 55%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.share-problems ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}

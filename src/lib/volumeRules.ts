@@ -25,8 +25,14 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 
 const toRanges = (rows: VolumeRule['ranges']): VolumeRange[] => rows.map(([volume, first, last]) => ({ volume, first, last }));
 
+/** Community rules fetched at runtime (see remoteRules.ts). They are checked before the built-in ones. */
+let extraRules: VolumeRule[] = [];
+export function setExtraRules(rules: VolumeRule[]) {
+  extraRules = rules;
+}
+
 /** The rule for this title, as volume info ready to save, or null. */
-export function findVolumeRule(title: string, rules: VolumeRule[] = VOLUME_RULES): VolumeInfo | null {
+export function findVolumeRule(title: string, rules: VolumeRule[] = [...extraRules, ...VOLUME_RULES]): VolumeInfo | null {
   const t = norm(title);
   if (!t) return null;
   const rule = rules.find((r) => r.titles.some((x) => norm(x) === t));

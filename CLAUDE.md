@@ -102,6 +102,15 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   Gachiakuta, One Piece, Berserk, Frieren …). Worth re-checking later: users can submit data there. Meanwhile it could
   supply a volume count plus per-volume dates and ISBNs (The Boxer: 13 volumes, more than Wikipedia's 11). Anime-Planet (no public API; a manga page is plain HTML that a server-side request can
   fetch, but it only shows a volume/chapter count, with no per-volume contents; scraping it would also need a relay).
+- **Community volume lists** (Share): a hand-made list shows a **Share** link on the manga page (`ShareDialog`, `volumeShare.ts`
+  validates and formats it: title and chapter ranges only). **Send** inserts it into a Supabase table `volume_submissions`
+  (`supabase/schema.sql`, project `pguaxzoqhdsujwtmiios`); Copy and Download are the fallback. Row-level security: anon can
+  insert only `approved = false` rows and read only approved ones, so the publishable key in `src/lib/community.ts` is safe to
+  ship. Never put the secret/service_role key in the repo. The maintainer approves rows in the Supabase dashboard (tick
+  `approved`). `remoteRules.ts` fetches approved rows once a day (cached in `mangadeck.remoteRules`, strict `parseRules()`
+  validation, fails quietly) and `findVolumeRule` checks them before the built-in rules. `npm run volumes:import` (`-- --dry`
+  to preview) copies approved rows into `volumeRules.json` so git keeps them; run it with `volumes:export` before committing.
+  Free tier: 500 MB, project pauses after ~1 week idle (Send then fails with a message; built-in rules are unaffected).
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
   `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.
