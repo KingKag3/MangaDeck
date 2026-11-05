@@ -12,7 +12,7 @@ React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 7k lines.
 
 ## Screenshots
 
-Manga covers are blanked out in these screenshots; in the app they show the real covers.
+Manga covers are blanked out in all screenshots; in the app they show the real covers.
 
 | Library with recommendations | Manga page with official volumes |
 | --- | --- |
@@ -21,6 +21,32 @@ Manga covers are blanked out in these screenshots; in the app they show the real
 | Find a title in your sources from the library | Paced bulk downloads |
 | --- | --- |
 | ![Search sources](docs/screenshots/search-sources.jpg) | ![Paced downloads](docs/screenshots/paced-downloads.jpg) |
+
+### Downloads
+
+Bulk downloads and `.cbz` exports are saved jobs that run one chapter at a time, show their progress here, and survive a reload. A chapter that keeps
+failing is set aside (and retried at the end) instead of stopping the job; when something is still left, **Retry** or **Pack without them**. Every
+finished download and file lands in the history, with where it was saved.
+
+![Downloads page: .cbz exports, paced downloads, server queue and history](docs/screenshots/downloads-page.jpg)
+
+### Manga page: volumes, your files and merging
+
+Official volumes come from Wikipedia, a series' Fandom wiki, the built-in/community rules, or your own list. Remember the folder you save a series' `.cbz`
+files in and the page lists what you have, what is missing, and merges the volumes you tick into one file (in the same folder, the originals untouched).
+
+![Manga page: Your .cbz files panel, volume strip](docs/screenshots/manga-volumes-and-files.jpg)
+
+![Merge .cbz files dialog](docs/screenshots/merge-dialog.jpg)
+
+### Library: new chapters and what's popular
+
+After **Check for updates**, titles with new chapters get a green border and a "+N new" ribbon, and a bar offers to show only them or download the new
+chapters. Above your recommendations, **What's popular** shows what is trending on AniList right now.
+
+![Library: titles with new chapters](docs/screenshots/library-new-chapters.jpg)
+
+![Library: What's popular and Recommended for you](docs/screenshots/library-shelves.jpg)
 
 ## Run it
 
@@ -77,8 +103,8 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 
 | Area | Features |
 | --- | --- |
-| Library | Category tabs with counts, search (matches words anywhere in a title), sort (title, unread, last read, date added, latest chapter) with direction, unread/downloaded filters, cover size slider, unread/download badges, "Continue reading" shelf, "Recommended for you" shelf (up to 30 titles from AniList based on what you read recently; hover for the synopsis, "i" for details, click to search for it in your source), **+ Sources** to also search the typed title in your English sources, multi-select (add to category, remove), one-click "Check for updates" with progress |
-| Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), **official volumes** (looked up from Wikipedia chapter lists, read from "Vol. N" in chapter names, imported from a Wikipedia or Fandom wiki link, or typed in by hand: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
+| Library | Category tabs with counts, search (matches words anywhere in a title), sort (title, unread, last read, date added, latest chapter) with direction, unread/downloaded filters, cover size slider, unread/download badges, "Continue reading" shelf, **"What's popular"** shelf (AniList trending), "Recommended for you" shelf (up to 30 titles from AniList based on what you read recently; hover for the synopsis, "i" for details, click to search for it in your source), **+ Sources** to also search the typed title in your English sources, multi-select (add to category, remove), one-click "Check for updates" with progress, and a green border plus "+N new" ribbon on titles that gained chapters |
+| Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), **official volumes** (looked up from Wikipedia chapter lists, read from "Vol. N" in chapter names, found on the series' **Fandom wiki** when Wikipedia has nothing, imported from a Wikipedia or Fandom wiki link, or typed in by hand: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), a **Your .cbz files** panel (remembers the folder, lists which volumes you have and which are missing) and **merge .cbz files** into one, smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
 | Reader | Paged (LTR/RTL) and webtoon modes, 4 fit modes, tap zones, swipe, keyboard, preloading, progress slider, resume position, auto mark-read, auto-download upcoming chapters, fullscreen |
 | Updates | New chapters grouped by day, reading history, one-tap download |
 | Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel). **Show queue** on a job lists every chapter still waiting; a chapter that failed 3 times is marked and Resume retries it. **.cbz exports** ("⬇ All as .cbz" / a volume's ".cbz") are saved jobs: they download every chapter, then pack them into one file, show on this page with progress, and can be paused, resumed, skipped past a failing chapter, or cancelled. History at the bottom, with "Clear exports" / "Clear history" |
