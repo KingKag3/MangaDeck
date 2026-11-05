@@ -90,6 +90,20 @@ Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` c
 
 A diagram of how the parts fit together (overview, volumes and shared rules, downloads / exports / merge) is in [`docs/architecture.drawio`](docs/architecture.drawio). Open it with [diagrams.net](https://app.diagrams.net) or the draw.io desktop app or VS Code extension.
 
+**How the parts fit together**
+
+![Overview: the browser app, nginx, Suwayomi, outside services and storage](docs/images/architecture-overview.png)
+
+**Volumes and shared rules**
+
+![Finding, saving and sharing volume lists](docs/images/architecture-volumes.png)
+
+**Downloads, exports and merge**
+
+![Paced downloads, .cbz export jobs and merging files](docs/images/architecture-downloads.png)
+
+The pictures are exported from the `.drawio` file. After editing the diagram, re-export the three pages to `docs/images/`.
+
 ```
 src/api/client.ts     GraphQL client, auth, token refresh
 src/api/queries.ts    every query/mutation + types (single file, easy to extend)
