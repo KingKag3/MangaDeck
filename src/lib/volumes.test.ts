@@ -538,3 +538,12 @@ describe('parseVolumeText on a one-page chapter list (Fandom "Chapters")', () =>
     ]);
   });
 });
+
+describe('titleVariants, acronym prefix', () => {
+  it('also offers the name after an acronym ("GTO: Great Teacher Onizuka")', () => {
+    expect(titleVariants('GTO: Great Teacher Onizuka')).toEqual(['GTO: Great Teacher Onizuka', 'GTO', 'Great Teacher Onizuka']);
+  });
+  it('does not do that for ordinary prefixes', () => {
+    expect(titleVariants('Re:Zero: Starting Life')).not.toContain('Starting Life');
+  });
+});

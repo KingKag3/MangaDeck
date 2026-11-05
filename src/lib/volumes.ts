@@ -324,6 +324,8 @@ export function titleVariants(title: string): string[] {
     for (const sep of [' - ', ' – ', ' — ', ': ', ' (']) {
       const i = base.indexOf(sep);
       if (i > 2) out.push(base.slice(0, i));
+      // "GTO: Great Teacher Onizuka": when the part before the separator is just an acronym, the real name is after it.
+      if (i > 0 && /^[A-Z0-9]{2,5}$/.test(base.slice(0, i)) && !shouted) out.push(base.slice(i + sep.length));
     }
     out.push(base.replace(/\s*\([^)]*\)\s*/g, ' '));
   }
