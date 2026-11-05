@@ -1,0 +1,186 @@
+import { safeFileName } from './export';
+import { ZipBuilder } from './zip';
+import { readContent, readRaw, readZip, type ZipEntry } from './zipRead';
+
+/**
+ * Merge several .cbz files (typically volumes) into one. Pages are copied straight from each source archive without
+ * being decompressed, so it is fast and needs little memory. A fresh ComicInfo.xml is written for the result.
+ * Source files are only read, never changed.
+ */
+
+const IMAGE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const natural = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+/** What we take from a source's ComicInfo.xml. */
+export interface ComicMeta {
+  series?: string;
+  volume?: number;
+  writer?: string;
+  penciller?: string;
+  publisher?: string;
+  genre?: string;
+  summary?: string;
+  web?: string;
+  language?: string;
+  manga?: string;
+}
+
+const unxml = (s: string) => s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+const esc = (s: string) => s.replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[c]!);
+
+/** Reads the few ComicInfo.xml fields we use (a regex is enough: the format is flat). */
+export function parseComicInfo(xml: string): ComicMeta {
+  const tag = (name: string) => {
+    const m = xml.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
+    const v = m ? unxml(m[1]).trim() : '';
+    return v || undefined;
+  };
+  const num = (v: string | undefined) => {
+    const n = v === undefined ? NaN : Number(v);
+    return Number.isInteger(n) && n > 0 ? n : undefined;
+  };
+  return {
+    series: tag('Series'),
+    volume: num(tag('Volume')) ?? num(tag('Number')),
+    writer: tag('Writer'),
+    penciller: tag('Penciller'),
+    publisher: tag('Publisher'),
+    genre: tag('Genre'),
+    summary: tag('Summary'),
+    web: tag('Web'),
+    language: tag('LanguageISO'),
+    manga: tag('Manga'),
+  };
+}
+
+/** "Vol. 03", "Volume 3", "v03" in a file name. */
+export function volumeFromName(name: string): number | undefined {
+  const m = name.match(/(?:\bvol(?:ume)?\.?\s*|\bv)0*(\d{1,3})(?!\d)/i);
+  return m ? Number(m[1]) : undefined;
+}
+
+export interface MergePart {
+  file: File;
+  /** Image pages in reading order. */
+  pages: ZipEntry[];
+  meta: ComicMeta;
+  /** From ComicInfo.xml, else from the file name; null when neither says. */
+  volume: number | null;
+}
+
+/** Open one .cbz and work out its pages and volume. Throws a readable message for files that cannot be merged. */
+export async function loadPart(file: File): Promise<MergePart> {
+  const entries = await readZip(file);
+  const pages = entries.filter((e) => IMAGE.test(e.name) && !e.name.split('/').some((s) => s.startsWith('.') || s === '__MACOSX')).sort((a, b) => natural(a.name, b.name));
+  if (pages.length === 0) throw new Error(`${file.name} has no page images in it.`);
+  const bad = pages.find((e) => e.method !== 0 && e.method !== 8);
+  if (bad) throw new Error(`${file.name} uses a compression method that cannot be copied safely.`);
+  if (pages.some((e) => e.flags & 1)) throw new Error(`${file.name} is password protected.`);
+  const info = entries.find((e) => e.name.toLowerCase() === 'comicinfo.xml');
+  let meta: ComicMeta = {};
+  if (info) {
+    try {
+      meta = parseComicInfo(new TextDecoder().decode(await readContent(file, info)));
+    } catch {
+      /* a broken ComicInfo.xml only costs us the metadata */
+    }
+  }
+  return { file, pages, meta, volume: meta.volume ?? volumeFromName(file.name) ?? null };
+}
+
+/** Volume order; files without a volume come last, in name order. */
+export function sortParts<T extends { volume: number | null; file: { name: string } }>(parts: T[]): T[] {
+  return [...parts].sort((a, b) => {
+    if (a.volume !== null && b.volume !== null && a.volume !== b.volume) return a.volume - b.volume;
+    if ((a.volume === null) !== (b.volume === null)) return a.volume === null ? 1 : -1;
+    return natural(a.file.name, b.file.name);
+  });
+}
+
+/** Things worth a look before merging. They never block the merge. */
+export function checkParts(parts: Pick<MergePart, 'volume' | 'meta' | 'file'>[]): string[] {
+  const out: string[] = [];
+  const series = new Set(parts.map((p) => p.meta.series?.toLowerCase().trim()).filter(Boolean));
+  if (series.size > 1) out.push('These files look like different series.');
+  const seen = new Map<number, number>();
+  for (const p of parts) if (p.volume !== null) seen.set(p.volume, (seen.get(p.volume) ?? 0) + 1);
+  const dupes = [...seen].filter(([, n]) => n > 1).map(([v]) => v);
+  if (dupes.length) out.push(`Volume ${dupes.join(', ')} appears more than once.`);
+  const vols = [...seen.keys()].sort((a, b) => a - b);
+  const gaps: number[] = [];
+  for (let v = vols[0]; v <= vols[vols.length - 1]; v++) if (!seen.has(v)) gaps.push(v);
+  if (gaps.length) out.push(`Missing volume${gaps.length === 1 ? '' : 's'} ${gaps.join(', ')}, between the first and last.`);
+  const unknown = parts.filter((p) => p.volume === null).length;
+  if (unknown) out.push(`${unknown} file${unknown === 1 ? ' has' : 's have'} no volume number, so ${unknown === 1 ? 'it goes' : 'they go'} last. Use the arrows to move ${unknown === 1 ? 'it' : 'them'}.`);
+  return out;
+}
+
+/** "1–5" for a run, "1, 3, 4" otherwise. */
+function volumeLabel(vols: number[]): string {
+  const v = [...new Set(vols)].sort((a, b) => a - b);
+  if (v.length === 0) return '';
+  const run = v.every((x, i) => i === 0 || x === v[i - 1] + 1);
+  return v.length > 1 && run ? `${v[0]}–${v[v.length - 1]}` : v.join(', ');
+}
+
+export function suggestName(series: string, parts: Pick<MergePart, 'volume'>[]): string {
+  const label = volumeLabel(parts.map((p) => p.volume).filter((v): v is number => v !== null));
+  const base = safeFileName(series) || 'Merged';
+  return `${base} - ${label ? `Vols. ${label.replace('–', '-')}` : 'Merged'}.cbz`;
+}
+
+export function mergedComicInfo(series: string, parts: Pick<MergePart, 'volume' | 'meta' | 'file'>[], pages: number): string {
+  const first = <K extends keyof ComicMeta>(k: K) => parts.map((p) => p.meta[k]).find((v) => v !== undefined);
+  const label = volumeLabel(parts.map((p) => p.volume).filter((v): v is number => v !== null));
+  const tags: [string, string | number | undefined][] = [
+    ['Title', label ? `${series} Vols. ${label}` : series],
+    ['Series', series],
+    ['Summary', first('summary')],
+    ['Writer', first('writer')],
+    ['Penciller', first('penciller')],
+    ['Publisher', first('publisher')],
+    ['Genre', first('genre')],
+    ['Web', first('web')],
+    ['PageCount', pages],
+    ['LanguageISO', first('language') ?? 'en'],
+    ['Manga', first('manga') ?? 'YesAndRightToLeft'],
+    ['Notes', `Merged from: ${parts.map((p) => p.file.name).join('; ')}. Merged by Mangadeck.`],
+  ];
+  const body = tags
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `  <${k}>${esc(String(v))}</${k}>`)
+    .join('\n');
+  return (
+    `<?xml version="1.0" encoding="utf-8"?>\n` +
+    `<ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">\n` +
+    `${body}\n</ComicInfo>\n`
+  );
+}
+
+export interface MergeOptions {
+  parts: MergePart[];
+  series: string;
+  /** Receives bytes as they are produced (a file on disk). Without it the result is built in memory. */
+  sink?: (part: Uint8Array) => Promise<void> | void;
+  onProgress?: (p: { part: number; parts: number }) => void;
+  signal?: AbortSignal;
+}
+
+/** Copy every page of every part, in order, into one archive. Pages are renamed 001_00001_original.jpg so any reader sorts them right. */
+export async function mergeParts(o: MergeOptions): Promise<{ blob: Blob | null; pages: number }> {
+  const zip = new ZipBuilder(o.sink);
+  let pages = 0;
+  o.onProgress?.({ part: 0, parts: o.parts.length });
+  for (const [pi, part] of o.parts.entries()) {
+    for (const e of part.pages) {
+      o.signal?.throwIfAborted();
+      const raw = await readRaw(part.file, e);
+      const base = (e.name.split('/').pop() ?? 'page').replace(/[\\/:*?"<>|]+/g, '_');
+      pages++;
+      await zip.addRaw(`${String(pi + 1).padStart(3, '0')}_${String(pages).padStart(5, '0')}_${base}`, raw, { method: e.method, crc: e.crc, size: e.size });
+    }
+    o.onProgress?.({ part: pi + 1, parts: o.parts.length });
+  }
+  await zip.add('ComicInfo.xml', new TextEncoder().encode(mergedComicInfo(o.series, o.parts, pages)));
+  return { blob: await zip.finish(), pages };
+}

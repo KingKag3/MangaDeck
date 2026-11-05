@@ -10,6 +10,7 @@ import { listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import ShareDialog from '../components/ShareDialog';
+import MergeDialog from '../components/MergeDialog';
 import LinkedSources from '../components/LinkedSources';
 import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
@@ -197,6 +198,7 @@ export default function MangaPage() {
   });
   const [editVolumes, setEditVolumes] = useState(false);
   const [shareVolumes, setShareVolumes] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -577,6 +579,9 @@ export default function MangaPage() {
                   ⬇ Each volume as .cbz
                 </button>
               )}
+            <button className="btn ghost" onClick={() => setMergeOpen(true)} title="Join .cbz files you already downloaded (for example volumes) into one file">
+              Merge .cbz files
+            </button>
             <button className="btn ghost" onClick={() => setAsc(!asc)}>
               {asc ? '↑ Oldest first' : '↓ Newest first'}
             </button>
@@ -806,6 +811,7 @@ export default function MangaPage() {
         )}
       </section>
 
+      {mergeOpen && <MergeDialog series={m.title} onClose={() => setMergeOpen(false)} />}
       {shareVolumes && volumeInfo && <ShareDialog title={m.title} ranges={volumeInfo.ranges} onClose={() => setShareVolumes(false)} />}
 
       {editVolumes && (

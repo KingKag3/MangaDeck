@@ -1962,3 +1962,33 @@ input[type='range'] {
   flex: 0 0 40px;
   align-self: flex-start;
 }
+
+.merge-dialog {
+  width: min(640px, 100%);
+}
+.merge-list {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.merge-list li {
+  align-items: center;
+  min-width: 0;
+}
+.merge-vol {
+  width: 52px;
+  flex: none;
+}
+.merge-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.merge-result {
+  color: var(--ok, #4cc38a);
+}

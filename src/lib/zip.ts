@@ -33,7 +33,12 @@ function dosDateTime(d: Date): { time: number; date: number } {
 interface Entry {
   name: Uint8Array;
   crc: number;
+  /** Uncompressed size. */
   size: number;
+  /** Size as stored in the archive (same as size unless the data was copied compressed). */
+  csize: number;
+  /** 0 = stored, 8 = deflate (only for data copied from another archive). */
+  method: number;
   offset: number;
   time: number;
   date: number;
@@ -60,24 +65,29 @@ export class ZipBuilder {
   private stamp = dosDateTime(new Date());
 
   async add(name: string, data: Uint8Array) {
-    if (data.length >= 0xffffffff) throw new Error('One file inside is over 4 GB, which this .cbz writer cannot store.');
+    await this.addRaw(name, data, { method: 0, crc: crc32(data), size: data.length });
+  }
+
+  /** Add data exactly as it is stored in another archive (no recompressing). `raw` is the stored bytes; `size` the uncompressed size. */
+  async addRaw(name: string, raw: Uint8Array, o: { method: number; crc: number; size: number }) {
+    if (raw.length >= 0xffffffff || o.size >= 0xffffffff) throw new Error('One file inside is over 4 GB, which this .cbz writer cannot store.');
     const nameBytes = new TextEncoder().encode(name);
-    const entry: Entry = { name: nameBytes, crc: crc32(data), size: data.length, offset: this.offset, ...this.stamp };
+    const entry: Entry = { name: nameBytes, crc: o.crc, size: o.size, csize: raw.length, method: o.method, offset: this.offset, ...this.stamp };
     const header = new DataView(new ArrayBuffer(30));
     header.setUint32(0, 0x04034b50, true);
     header.setUint16(4, 20, true); // version needed
     header.setUint16(6, 0x0800, true); // UTF-8 names
-    header.setUint16(8, 0, true); // stored
+    header.setUint16(8, entry.method, true);
     header.setUint16(10, entry.time, true);
     header.setUint16(12, entry.date, true);
     header.setUint32(14, entry.crc, true);
-    header.setUint32(18, entry.size, true);
+    header.setUint32(18, entry.csize, true);
     header.setUint32(22, entry.size, true);
     header.setUint16(26, nameBytes.length, true);
     header.setUint16(28, 0, true);
     await this.push(new Uint8Array(header.buffer));
     await this.push(nameBytes);
-    await this.push(data);
+    await this.push(raw);
     this.entries.push(entry);
   }
 
@@ -92,11 +102,11 @@ export class ZipBuilder {
       h.setUint16(4, far ? 45 : 20, true); // made by
       h.setUint16(6, far ? 45 : 20, true); // needed
       h.setUint16(8, 0x0800, true);
-      h.setUint16(10, 0, true);
+      h.setUint16(10, e.method, true);
       h.setUint16(12, e.time, true);
       h.setUint16(14, e.date, true);
       h.setUint32(16, e.crc, true);
-      h.setUint32(20, e.size, true);
+      h.setUint32(20, e.csize, true);
       h.setUint32(24, e.size, true);
       h.setUint16(28, e.name.length, true);
       h.setUint16(30, far ? 12 : 0, true); // extra field length

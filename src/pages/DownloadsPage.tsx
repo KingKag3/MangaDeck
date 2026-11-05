@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { M, Q } from '../api/queries';
@@ -7,9 +8,11 @@ import { chapterLabel } from '../lib/format';
 import PacedJobs from '../components/PacedJobs';
 import ExportJobs from '../components/ExportJobs';
 import HistoryList from '../components/HistoryList';
+import MergeDialog from '../components/MergeDialog';
 
 export default function DownloadsPage() {
   const qc = useQueryClient();
+  const [merging, setMerging] = useState(false);
   const { data, error, isLoading, refetch } = useQuery({
     queryKey: ['downloads'],
     queryFn: Q.downloads,
@@ -52,7 +55,12 @@ export default function DownloadsPage() {
 
   return (
     <div className="page narrow">
-      <PageHeader title="Downloads" />
+      <PageHeader title="Downloads">
+        <button className="btn ghost" onClick={() => setMerging(true)} title="Join .cbz files you already downloaded (for example volumes) into one file">
+          Merge .cbz files
+        </button>
+      </PageHeader>
+      {merging && <MergeDialog onClose={() => setMerging(false)} />}
 
       <ExportJobs />
       <PacedJobs />

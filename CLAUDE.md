@@ -142,6 +142,14 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   volumes) starts one export job per volume (last volume first, since new jobs go on top and the runner takes the top running job), each with a lazy handle that creates its file in the picked folder only when packed; files already there are skipped. Finished exports notify when the tab is hidden (permission asked on start). Not yet tested end to end on a real series;
   known gaps: a stream cannot resume mid-file. `zip.ts` writes ZIP64 end/central records past 4 GB or 65,535 files (one entry
   inside must still be under 4 GB; `ZipBuilder` takes optional tiny `limits` so tests can exercise ZIP64).
+- **Merge .cbz files** (`MergeDialog`, buttons on the Downloads page and the manga page; logic `src/lib/merge.ts`, reader `src/lib/zipRead.ts`):
+  the user picks several .cbz files with a plain file input (no handles needed), they are sorted by volume (ComicInfo `<Volume>`/`<Number>`,
+  else "Vol. 03" in the file name), can be reordered, and `mergeParts()` copies each page's stored bytes into a new zip via
+  `ZipBuilder.addRaw()` (no recompression, deflate entries stay deflate; only methods 0 and 8, not encrypted). Pages are renamed
+  `001_00001_original.jpg` so every reader sorts them. A new ComicInfo.xml is written (series, Vols. range, writer etc. from the first file that
+  has them, PageCount, Notes listing the sources). Sources are only read. `checkParts()` warns (never blocks) about different series,
+  duplicate volumes, gaps and files without a volume. Output goes to a save-picker file (Chrome/Edge) or an in-memory blob (warns above
+  1.5 GB). Not logged in the history (no manga id). Runs inside the dialog, not as a saved job.
 - **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file
   would start a second Suwayomi on 4567). Use `$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck`.
   Suwayomi keeps downloads as `.cbz` per chapter under its downloads folder; deleting through the API
