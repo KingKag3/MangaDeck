@@ -7,6 +7,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
+import { toMs } from '../lib/format';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
 import { startPacedJob } from '../lib/pacer';
 import { visibleChapters } from '../lib/groups';
@@ -38,6 +39,11 @@ function loadView(): View {
   return { sort: 'title', desc: false, unreadOnly: false, downloadedOnly: false };
 }
 
+/** When the newest chapter came out (the source's upload date). fetchedAt is only when we pulled the list, so it is the fallback. */
+export function latestChapterAt(m: LibraryManga): number {
+  return toMs(m.latestUploadedChapter?.uploadDate) || toMs(m.latestFetchedChapter?.fetchedAt);
+}
+
 function sortFn(sort: Sort): (a: LibraryManga, b: LibraryManga) => number {
   switch (sort) {
     case 'unread':
@@ -47,7 +53,7 @@ function sortFn(sort: Sort): (a: LibraryManga, b: LibraryManga) => number {
     case 'added':
       return (a, b) => Number(a.inLibraryAt) - Number(b.inLibraryAt);
     case 'updated':
-      return (a, b) => Number(a.latestFetchedChapter?.fetchedAt ?? 0) - Number(b.latestFetchedChapter?.fetchedAt ?? 0);
+      return (a, b) => latestChapterAt(a) - latestChapterAt(b);
     default:
       return (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true });
   }

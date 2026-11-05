@@ -39,6 +39,7 @@ export interface LibraryManga extends MangaBase {
   chapters: { totalCount: number };
   lastReadChapter: { id: number; lastReadAt: string } | null;
   latestFetchedChapter: { id: number; fetchedAt: string } | null;
+  latestUploadedChapter: { id: number; uploadDate: string } | null;
 }
 
 export interface MangaDetail extends MangaBase {
@@ -142,6 +143,7 @@ export const Q = {
           chapters { totalCount }
           lastReadChapter { id lastReadAt }
           latestFetchedChapter { id fetchedAt }
+          latestUploadedChapter { id uploadDate }
         }
       }
     }`);
