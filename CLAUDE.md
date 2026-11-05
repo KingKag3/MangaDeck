@@ -88,6 +88,9 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   any wiki), finds list pages (wiki search, then Volumes / Chapters / Chapters and Volumes / Volumes and Chapters / Chapter List / ...), and
   reads each with `importVolumesFromWiki()` (tables, "Volume N" pages, or text). A result is kept only if `plausibleRanges()` (2+ volumes, in
   order, no overlap). Saved with `source: 'fandom'`, handled like `'wikipedia'` (replaced on re-check, not exported by `volumes:export`).
+  When the exact guesses and the AniList names find no wiki, `fuzzySlugs()` tries the title with words dropped from the end and with
+  -wiki / -webtoon / -manga added; `isWikiFor()` then needs the wiki's name to cover the title, or the title to cover at least 60% of the
+  wiki's name (generic words like Manga/Manhwa/Webtoon/Series are ignored), so a franchise wiki is not taken for a spin-off.
   Fandom's cross-wiki search (`www.fandom.com/api/v1/Search/CrossWiki`) answers 403, so the address has to be guessed. Known misses: wikis
   whose volume page is a stub or gallery (Solo Leveling, Lookism), wikis with only chapter lists (The Boxer), wikis with no search index (GTO).
   Those still need Edit volumes / the wiki-link import.

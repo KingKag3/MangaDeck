@@ -92,3 +92,38 @@ describe('lookupFandom', () => {
     expect(info?.source).toBe('fandom');
   });
 });
+
+import { fuzzySlugs } from './fandom';
+
+describe('fuzzySlugs', () => {
+  it('shortens the title and adds common suffixes', () => {
+    const s = fuzzySlugs(["Omniscient Reader's Viewpoint Webtoon"]);
+    expect(s).toContain('omniscient-readers-viewpoint');
+    expect(s).toContain('omniscient-readers');
+    expect(s).toContain('omniscient-readers-viewpoint-webtoon-wiki');
+  });
+  it('skips short stems and slugs already tried', () => {
+    expect(fuzzySlugs(['One Piece'], ['one-piece-wiki'])).not.toContain('one-piece-wiki');
+    expect(fuzzySlugs(['The Boxer'])).not.toContain('the');
+  });
+});
+
+describe('lookupFandom with a looser title', () => {
+  it('finds the wiki from a longer title and still checks its name', async () => {
+    vi.stubGlobal('fetch', fakeFetch());
+    const info = await lookupFandom('Test Series Extra');
+    expect(info?.page).toBe('test-series: Volumes');
+  });
+  it('does not accept a wiki whose name is much shorter than the title', async () => {
+    vi.stubGlobal('fetch', fakeFetch());
+    expect(await lookupFandom('Test Series Extra Long Subtitle Here')).toBeNull();
+  });
+});
+
+describe('generic words in the title', () => {
+  it('ignores "Manhwa" / "Webtoon" when comparing with the wiki name', async () => {
+    vi.stubGlobal('fetch', fakeFetch());
+    const info = await lookupFandom('Test Series Manhwa');
+    expect(info?.page).toBe('test-series: Volumes');
+  });
+});

@@ -33,6 +33,34 @@ export function wikiSlugs(names: string[]): string[] {
   return [...new Set(out.filter((s) => s.length >= 3))].slice(0, MAX_SLUGS);
 }
 
+const slugOf = (n: string) =>
+  n
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+/**
+ * Looser guesses for when the exact ones found nothing: the title with words dropped from the end
+ * ("Omniscient Reader's Viewpoint Webtoon" gives omniscient-readers-viewpoint), and with -wiki / -webtoon / -manga added.
+ * Only used with the wiki-name check, which is stricter for these.
+ */
+export function fuzzySlugs(names: string[], skip: string[] = []): string[] {
+  const out: string[] = [];
+  for (const n of names) {
+    const base = slugOf(n).replace(/^the-/, '');
+    const words = base.split('-').filter(Boolean);
+    for (let k = words.length - 1; k >= 1; k--) {
+      const part = words.slice(0, k).join('-');
+      if (part.length >= 6) out.push(part, part.replace(/-/g, ''));
+    }
+    if (base.length >= 3) out.push(`${base}-wiki`, `${base}-webtoon`, `${base}-manga`);
+  }
+  const seen = new Set(skip);
+  return [...new Set(out)].filter((x) => !seen.has(x)).slice(0, 20);
+}
+
 /** A volume list worth trusting: at least two volumes, in order, chapter ranges that do not run backwards or overlap. */
 export function plausibleRanges(ranges: VolumeRange[]): boolean {
   if (ranges.length < 2 || ranges.length > 400) return false;
@@ -80,9 +108,14 @@ async function isWikiFor(sub: string, names: string[]): Promise<boolean> {
     if (!res.ok) return false;
     const site = normTitle(String((await res.json())?.query?.general?.sitename ?? ''));
     if (site.length < 4) return false;
-    return names.some((n) => {
+    // "Noblesse Manhwa" is still the "Noblesse Wiki": also compare with the generic words taken off.
+    const forms = names.flatMap((n) => [n, n.replace(/\b(manga|manhwa|manhua|webtoon|series|comic|official)\b/gi, ' ')]);
+    return forms.some((n) => {
       const x = normTitle(n);
-      return x.length >= 4 && (site.includes(x) || x.includes(site.replace(/wiki$/, '')));
+      if (x.length < 4) return false;
+      const core = site.replace(/wiki$/, '');
+      // The wiki's name covers the title, or the title covers most of the wiki's name ("Omniscient Reader" vs "...'s Viewpoint").
+      return site.includes(x) || (core.length >= 4 && x.includes(core) && core.length >= x.length * 0.6);
     });
   } catch {
     return false;
@@ -116,14 +149,19 @@ export async function lookupFandom(title: string): Promise<VolumeInfo | null> {
   const names = titleVariants(title);
   const tried = wikiSlugs(names);
   let sub = await findWiki(tried, names);
+  // Other names AniList knows (fetched once, only when the title alone found no wiki).
+  let all = names;
   if (!sub) {
     const extra = await aniListNames(title);
     if (extra.length) {
-      const all = [...names, ...extra.flatMap((n) => titleVariants(n))];
+      all = [...new Set([...names, ...extra.flatMap((n) => titleVariants(n))])];
       const more = wikiSlugs(all).filter((s) => !tried.includes(s));
+      tried.push(...more);
       sub = await findWiki(more, all);
     }
   }
+  // Last: shortened and decorated versions of the names.
+  if (!sub) sub = await findWiki(fuzzySlugs(all, tried), all);
   if (!sub) return null;
   for (const page of await listPages(sub)) {
     try {
