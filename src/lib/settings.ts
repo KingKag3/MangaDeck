@@ -32,7 +32,7 @@ const KEY = 'mangadeck.settings';
 
 const defaults: Settings = {
   mode: 'paged',
-  direction: 'rtl',
+  direction: 'ltr',
   fit: 'screen',
   preload: 4,
   gridWidth: 150,
