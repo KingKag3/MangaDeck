@@ -10,7 +10,8 @@
     "test": "vitest run",
     "preview": "vite preview",
     "volumes:export": "node scripts/export-volume-rules.mjs",
-    "volumes:import": "node scripts/import-approved-rules.mjs"
+    "volumes:import": "node scripts/import-approved-rules.mjs",
+    "screenshots": "node scripts/readme-screenshots.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.0",

@@ -189,7 +189,10 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   Never send the bearer token or Suwayomi URLs to them; external cover images use a plain `<img>`, not `useImage`.
 - `.hero-bg` (blurred cover) is scaled past the hero; it must keep `pointer-events: none` or it eats clicks on the
   chapter toolbar. Check hover bugs with `document.elementFromPoint` at several heights, not just the center.
-- For README screenshots the manga covers are hidden on purpose (public repo); see `docs/screenshots/`.
+- For README screenshots the manga covers are hidden on purpose (public repo); see `docs/screenshots/`. `npm run screenshots` retakes the newer
+  ones (downloads page, manga page with volumes and files, merge dialog, library) against `npm run dev` with headless Chrome
+  (`scripts/readme-screenshots.mjs`: pretend jobs/history/folder are injected, covers hidden; uses the maintainer's manga ids, `MANGA_ID` overrides).
+  Retake them when those screens change, and re-export the diagrams in `docs/images/` when the architecture diagram changes.
 - Chapters are fetched newest first (`order: SOURCE_ORDER DESC`). Reader "next" is `list[idx - 1]`, "previous" is `list[idx + 1]`.
 - History uses `filter: { lastReadAt: { greaterThan: "0" } }`. `condition: { isRead: true }` is wrong for it.
 - `startDownloader` with an empty queue makes the server hang about 30 s, so the Start button is disabled when the queue is empty.
