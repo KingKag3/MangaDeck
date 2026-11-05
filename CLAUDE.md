@@ -170,6 +170,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   "Each volume as .cbz" saves its folder automatically; the panel also has Choose/Change/Forget. It lists the folder's `.cbz` files whose name
   matches the title (`nameMatchesSeries`), reads volumes from names (`volumesInName`: "Vol. 03", "Vols. 1-5"), shows which known volumes are
   missing, and merges the ticked files into the SAME folder (`MergeDialog` with `folder` + `initialFiles`; never overwrites, adds " (2)").
+  **Adding new volumes to a complete file**: our page names (`v01_c0003_p004.jpg`, kept at the end of a merged name) tell `pageVolumes()` which
+  volumes a file holds (`MergePart.covers`), so a "Complete" or already-merged file sorts by its first volume and the panel's `updateFor()` finds
+  the single-volume files it lacks ("New since X: Vol. 27" + **Add to it**, which ticks them together). `mergeParts()` skips any chapter
+  (`chapterKeyOf()`, by chapter number, whatever volume) that an earlier file already brought in, so a repeated volume adds nothing. The result
+  is a NEW file (`Series - Vols. 1-27.cbz`); the old complete file is never touched or deleted.
   Merged sources are remembered in localStorage `mangadeck.merged` and shown as "merged into X". Only file names are read for the list;
   the zips are opened when merging.
 - **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file

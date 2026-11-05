@@ -1994,3 +1994,12 @@ input[type='range'] {
 .merge-result {
   color: var(--ok, #4cc38a);
 }
+
+.update-hint {
+  align-items: center;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+}

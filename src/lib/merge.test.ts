@@ -91,7 +91,7 @@ describe('merging', () => {
     const mk = async (n: string, v: number, s = 'Test') => loadPart(await makeCbz(n, ['x'], info(v, s)));
     const warnings = checkParts([await mk('a.cbz', 1), await mk('b.cbz', 3), await mk('c.cbz', 3, 'Other')]);
     expect(warnings.join(' ')).toMatch(/different series/);
-    expect(warnings.join(' ')).toMatch(/Volume 3 appears more than once/);
+    expect(warnings.join(' ')).toMatch(/Volume 3 is in more than one file/);
     expect(warnings.join(' ')).toMatch(/Missing volume 2/);
   });
   it('suggests a file name', () => {
@@ -114,5 +114,65 @@ describe('file names', () => {
     expect(nameMatchesSeries('Dandadan - Vol. 01.cbz', 'Dandadan')).toBe(true);
     expect(nameMatchesSeries('Kaiju No. 8 - Vol. 1.cbz', 'Kaiju No 8')).toBe(true);
     expect(nameMatchesSeries('Other - Vol. 1.cbz', 'Dandadan')).toBe(false);
+  });
+});
+
+import { chapterKeyOf, pageVolumes } from './merge';
+
+/** A .cbz in our own page naming: chapters per volume, e.g. { 1: [1, 2], 2: [3] }. */
+async function ourCbz(name: string, volumes: Record<number, number[]>, extra: Record<string, string> = {}): Promise<File> {
+  const z = new ZipBuilder();
+  for (const [v, chapters] of Object.entries(volumes)) {
+    for (const c of chapters) {
+      for (const p of [1, 2]) {
+        await z.add(`v${String(v).padStart(2, '0')}_c${String(c).padStart(4, '0')}_p00${p}.jpg`, enc(`v${v}c${c}p${p}`));
+      }
+    }
+  }
+  for (const [n, t] of Object.entries(extra)) await z.add(n, enc(t));
+  return new File([(await z.finish())!], name);
+}
+
+describe('our own page names', () => {
+  it('reads the volume and chapter back, also inside a merged name', () => {
+    expect(pageVolumes(['v01_c0001_p001.jpg', 'v02_c0005_p001.jpg', 'vz_c0200_p001.jpg'])).toEqual([1, 2]);
+    expect(chapterKeyOf('v26_c0201_p003.png')).toBe('c0201');
+    expect(chapterKeyOf('001_00005_v01_c0005_5_p001.jpg')).toBe('c0005_5');
+    expect(chapterKeyOf('page-12.jpg')).toBeNull();
+  });
+});
+
+describe('adding new volumes to a complete file', () => {
+  it('puts the complete file first, appends the new volumes and keeps one copy of each chapter', async () => {
+    const complete = await loadPart(await ourCbz('Series - Complete.cbz', { 1: [1, 2], 2: [3, 4] }));
+    const vol3 = await loadPart(await ourCbz('Series - Vol. 03.cbz', { 3: [5, 6] }));
+    const vol2again = await loadPart(await ourCbz('Series - Vol. 02.cbz', { 2: [3, 4] }));
+    expect(complete.covers).toEqual([1, 2]);
+    expect(complete.volume).toBe(1);
+
+    const parts = sortParts([vol3, vol2again, complete]);
+    expect(parts.map((p) => p.file.name)).toEqual(['Series - Complete.cbz', 'Series - Vol. 02.cbz', 'Series - Vol. 03.cbz']);
+    expect(checkParts(parts).join(' ')).toMatch(/Volume 2 is in more than one file/);
+
+    const { blob, pages, skipped } = await mergeParts({ parts, series: 'Series' });
+    expect(skipped).toBe(4); // volume 2's two chapters, two pages each, were already in the complete file
+    expect(pages).toBe(12);
+    const names = (await readZip(blob!)).map((e) => e.name);
+    expect(names.filter((n) => n.endsWith('.jpg')).map((n) => chapterKeyOf(n))).toEqual(
+      ['c0001', 'c0001', 'c0002', 'c0002', 'c0003', 'c0003', 'c0004', 'c0004', 'c0005', 'c0005', 'c0006', 'c0006'],
+    );
+    expect(suggestName('Series', parts)).toBe('Series - Vols. 1-3.cbz');
+  });
+  it('still works when the merged file is merged again', async () => {
+    const first = await mergeParts({
+      parts: [await loadPart(await ourCbz('a.cbz', { 1: [1] })), await loadPart(await ourCbz('b.cbz', { 2: [2] }))],
+      series: 'S',
+    });
+    const merged = await loadPart(new File([first.blob!], 'S - Vols. 1-2.cbz'));
+    expect(merged.covers).toEqual([1, 2]);
+    const next = await loadPart(await ourCbz('c.cbz', { 2: [2], 3: [3] }));
+    const again = await mergeParts({ parts: sortParts([next, merged]), series: 'S' });
+    expect(again.skipped).toBe(2); // chapter 2 of the new file was already in the merged one
+    expect(again.pages).toBe(6);
   });
 });

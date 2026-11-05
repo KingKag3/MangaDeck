@@ -82,8 +82,32 @@ export function nameMatchesSeries(fileName: string, series: string): boolean {
   return want === '' || norm(fileName).includes(want);
 }
 
+/**
+ * Our own exports name pages v01_c0003_p004.jpg (vz_ outside any volume); a merged file keeps that at the end of each name.
+ * These read the volume and the chapter back out, so a "complete" file knows which volumes it holds.
+ */
+const PAGE_NAME = /(?:^|[_/])(v(\d+)|vz)_c(\d{4})((?:_\d+)?)_p\d+\.\w+$/;
+
+/** Volumes whose pages are in this list of entries (from our own page names). */
+export function pageVolumes(names: string[]): number[] {
+  const out = new Set<number>();
+  for (const n of names) {
+    const m = PAGE_NAME.exec(n);
+    if (m && m[2] !== undefined) out.add(Number(m[2]));
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** "c0201" or "c0005_5": the chapter a page belongs to, whatever volume it is filed under. Null for other naming. */
+export function chapterKeyOf(name: string): string | null {
+  const m = PAGE_NAME.exec(name);
+  return m ? 'c' + m[3] + m[4] : null;
+}
+
 export interface MergePart {
   file: File;
+  /** Every volume this file holds (a complete-series file holds many). Empty when unknown. */
+  covers: number[];
   /** Image pages in reading order. */
   pages: ZipEntry[];
   meta: ComicMeta;
@@ -108,7 +132,11 @@ export async function loadPart(file: File): Promise<MergePart> {
       /* a broken ComicInfo.xml only costs us the metadata */
     }
   }
-  return { file, pages, meta, volume: meta.volume ?? volumeFromName(file.name) ?? null };
+  const inPages = pageVolumes(pages.map((e) => e.name));
+  const named = meta.volume ?? volumeFromName(file.name);
+  const covers = inPages.length ? inPages : volumesInName(file.name).length ? volumesInName(file.name) : named !== undefined ? [named] : [];
+  // A complete file sorts by its first volume, so the new volumes come after it.
+  return { file, pages, meta, covers, volume: inPages.length > 1 ? inPages[0] : (named ?? inPages[0] ?? null) };
 }
 
 /** Volume order; files without a volume come last, in name order. */
@@ -121,19 +149,22 @@ export function sortParts<T extends { volume: number | null; file: { name: strin
 }
 
 /** Things worth a look before merging. They never block the merge. */
-export function checkParts(parts: Pick<MergePart, 'volume' | 'meta' | 'file'>[]): string[] {
+type PartInfo = Pick<MergePart, 'volume' | 'meta' | 'file'> & { covers?: number[] };
+const coversOf = (p: PartInfo): number[] => (p.covers?.length ? p.covers : p.volume !== null ? [p.volume] : []);
+
+export function checkParts(parts: PartInfo[]): string[] {
   const out: string[] = [];
   const series = new Set(parts.map((p) => p.meta.series?.toLowerCase().trim()).filter(Boolean));
   if (series.size > 1) out.push('These files look like different series.');
   const seen = new Map<number, number>();
-  for (const p of parts) if (p.volume !== null) seen.set(p.volume, (seen.get(p.volume) ?? 0) + 1);
+  for (const p of parts) for (const v of coversOf(p)) seen.set(v, (seen.get(v) ?? 0) + 1);
   const dupes = [...seen].filter(([, n]) => n > 1).map(([v]) => v);
-  if (dupes.length) out.push(`Volume ${dupes.join(', ')} appears more than once.`);
+  if (dupes.length) out.push(`Volume ${dupes.join(', ')} is in more than one file. Pages of a chapter that an earlier file already has are skipped.`);
   const vols = [...seen.keys()].sort((a, b) => a - b);
   const gaps: number[] = [];
   for (let v = vols[0]; v <= vols[vols.length - 1]; v++) if (!seen.has(v)) gaps.push(v);
   if (gaps.length) out.push(`Missing volume${gaps.length === 1 ? '' : 's'} ${gaps.join(', ')}, between the first and last.`);
-  const unknown = parts.filter((p) => p.volume === null).length;
+  const unknown = parts.filter((p) => coversOf(p).length === 0).length;
   if (unknown) out.push(`${unknown} file${unknown === 1 ? ' has' : 's have'} no volume number, so ${unknown === 1 ? 'it goes' : 'they go'} last. Use the arrows to move ${unknown === 1 ? 'it' : 'them'}.`);
   return out;
 }
@@ -146,15 +177,15 @@ function volumeLabel(vols: number[]): string {
   return v.length > 1 && run ? `${v[0]}–${v[v.length - 1]}` : v.join(', ');
 }
 
-export function suggestName(series: string, parts: Pick<MergePart, 'volume'>[]): string {
-  const label = volumeLabel(parts.map((p) => p.volume).filter((v): v is number => v !== null));
+export function suggestName(series: string, parts: Pick<MergePart, 'volume'>[] & { covers?: number[] }[]): string {
+  const label = volumeLabel(parts.flatMap((p) => coversOf(p as PartInfo)));
   const base = safeFileName(series) || 'Merged';
   return `${base} - ${label ? `Vols. ${label.replace('–', '-')}` : 'Merged'}.cbz`;
 }
 
-export function mergedComicInfo(series: string, parts: Pick<MergePart, 'volume' | 'meta' | 'file'>[], pages: number): string {
+export function mergedComicInfo(series: string, parts: PartInfo[], pages: number): string {
   const first = <K extends keyof ComicMeta>(k: K) => parts.map((p) => p.meta[k]).find((v) => v !== undefined);
-  const label = volumeLabel(parts.map((p) => p.volume).filter((v): v is number => v !== null));
+  const label = volumeLabel(parts.flatMap(coversOf));
   const tags: [string, string | number | undefined][] = [
     ['Title', label ? `${series} Vols. ${label}` : series],
     ['Series', series],
@@ -190,20 +221,31 @@ export interface MergeOptions {
 }
 
 /** Copy every page of every part, in order, into one archive. Pages are renamed 001_00001_original.jpg so any reader sorts them right. */
-export async function mergeParts(o: MergeOptions): Promise<{ blob: Blob | null; pages: number }> {
+export async function mergeParts(o: MergeOptions): Promise<{ blob: Blob | null; pages: number; skipped: number }> {
   const zip = new ZipBuilder(o.sink);
   let pages = 0;
+  let skipped = 0;
+  // Chapters (by number) that earlier files already brought in: a new volume file that repeats them adds nothing.
+  const have = new Set<string>();
   o.onProgress?.({ part: 0, parts: o.parts.length });
   for (const [pi, part] of o.parts.entries()) {
+    const mine = new Set<string>();
     for (const e of part.pages) {
       o.signal?.throwIfAborted();
+      const key = chapterKeyOf(e.name);
+      if (key && have.has(key)) {
+        skipped++;
+        continue;
+      }
+      if (key) mine.add(key);
       const raw = await readRaw(part.file, e);
       const base = (e.name.split('/').pop() ?? 'page').replace(/[\\/:*?"<>|]+/g, '_');
       pages++;
       await zip.addRaw(`${String(pi + 1).padStart(3, '0')}_${String(pages).padStart(5, '0')}_${base}`, raw, { method: e.method, crc: e.crc, size: e.size });
     }
+    for (const k of mine) have.add(k);
     o.onProgress?.({ part: pi + 1, parts: o.parts.length });
   }
   await zip.add('ComicInfo.xml', new TextEncoder().encode(mergedComicInfo(o.series, o.parts, pages)));
-  return { blob: await zip.finish(), pages };
+  return { blob: await zip.finish(), pages, skipped };
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { canPickFolder, pickFolder, type FolderHandle } from '../lib/export';
 import { folderAccess, forgetFolder, getMerged, listCbz, loadFolder, markMerged, saveFolder, type FolderFile } from '../lib/folderStore';
-import { nameMatchesSeries, volumesInName } from '../lib/merge';
+import { nameMatchesSeries, pageVolumes, volumesInName } from '../lib/merge';
+import { readZip } from '../lib/zipRead';
 import MergeDialog from './MergeDialog';
 import { errorToast } from './ui';
 
@@ -22,6 +23,25 @@ function ranges(nums: number[]): string {
 
 type Row = FolderFile & { volumes: number[]; mergedInto?: string };
 
+/** What each file holds: from its name, or from its page names for a "complete" or unnumbered file. */
+function buildRows(files: FolderFile[], covers: Record<string, number[]>, merged: Record<string, string>, title: string, showAll: boolean): Row[] {
+  return files
+    .filter((f) => showAll || nameMatchesSeries(f.name, title))
+    .map((f) => ({ ...f, volumes: covers[f.name] ?? volumesInName(f.name), mergedInto: merged[f.name] }));
+}
+
+/**
+ * A file that already holds several volumes (the complete series, or an earlier merge) plus single-volume files it does
+ * not have yet: those are the new volumes to add to it.
+ */
+function updateFor(rows: Row[]): { base: Row; fresh: Row[] } | null {
+  const bases = rows.filter((r) => r.volumes.length > 1 && !r.mergedInto);
+  const base = bases.find((r) => /complete/i.test(r.name)) ?? [...bases].sort((a, b) => b.volumes.length - a.volumes.length)[0];
+  if (!base) return null;
+  const fresh = rows.filter((r) => !r.mergedInto && r.volumes.length === 1 && !base.volumes.includes(r.volumes[0]));
+  return fresh.length ? { base, fresh } : null;
+}
+
 /**
  * The .cbz files saved for this series, read from a folder the browser remembers. Shows which volumes you have and
  * which are missing, and merges the ones you tick into one file in the same folder. Chrome / Edge only.
@@ -31,6 +51,7 @@ export default function LocalFiles({ id, title, knownVolumes }: { id: number; ti
   const [state, setState] = useState<'loading' | 'none' | 'ask' | 'ready'>('loading');
   const [files, setFiles] = useState<FolderFile[]>([]);
   const [merged, setMerged] = useState<Record<string, string>>({});
+  const [covers, setCovers] = useState<Record<string, number[]>>({});
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -38,12 +59,26 @@ export default function LocalFiles({ id, title, knownVolumes }: { id: number; ti
   const refresh = useCallback(async (dir: FolderHandle) => {
     const list = await listCbz(dir);
     const m = getMerged(id);
+    // Files with no volume in the name, or called "complete", are opened (only the directory is read) to see which volumes they hold.
+    const cov: Record<string, number[]> = {};
+    for (const f of list) {
+      if (!nameMatchesSeries(f.name, title) || (volumesInName(f.name).length > 0 && !/complete/i.test(f.name))) continue;
+      try {
+        const v = pageVolumes((await readZip(f.file)).map((e) => e.name));
+        if (v.length) cov[f.name] = v;
+      } catch {
+        /* not readable: it just shows without volumes */
+      }
+    }
     setFiles(list);
     setMerged(m);
-    // Start with the single-volume files that have not been merged yet ticked.
-    setPicked(new Set(list.filter((f) => volumesInName(f.name).length === 1 && !m[f.name]).map((f) => f.name)));
+    setCovers(cov);
+    // Tick the new volumes together with the file they belong to; otherwise the single-volume files not merged yet.
+    const rows = buildRows(list, cov, m, title, false);
+    const upd = updateFor(rows);
+    setPicked(new Set(upd ? [upd.base.name, ...upd.fresh.map((r) => r.name)] : rows.filter((r) => r.volumes.length === 1 && !r.mergedInto).map((r) => r.name)));
     setState('ready');
-  }, [id]);
+  }, [id, title]);
 
   useEffect(() => {
     let live = true;
@@ -86,15 +121,10 @@ export default function LocalFiles({ id, title, knownVolumes }: { id: number; ti
     setState('none');
   }
 
-  const rows: Row[] = useMemo(
-    () =>
-      files
-        .filter((f) => showAll || nameMatchesSeries(f.name, title))
-        .map((f) => ({ ...f, volumes: volumesInName(f.name), mergedInto: merged[f.name] })),
-    [files, merged, title, showAll],
-  );
+  const rows: Row[] = useMemo(() => buildRows(files, covers, merged, title, showAll), [files, covers, merged, title, showAll]);
+  const update = useMemo(() => updateFor(rows), [rows]);
   const hidden = files.length - files.filter((f) => nameMatchesSeries(f.name, title)).length;
-  const have = rows.filter((r) => !r.mergedInto || files.some((f) => f.name === r.mergedInto)).flatMap((r) => r.volumes);
+  const have = rows.flatMap((r) => r.volumes);
   const missing = knownVolumes.filter((v) => !have.includes(v));
   const chosen = rows.filter((r) => picked.has(r.name));
 
@@ -171,6 +201,22 @@ export default function LocalFiles({ id, title, knownVolumes }: { id: number; ti
                 </li>
               ))}
             </ul>
+          )}
+          {update && (
+            <div className="row gap wrap update-hint">
+              <span className="small">
+                New since <b>{update.base.name}</b>: {update.fresh.map((r) => `Vol. ${r.volumes[0]}`).join(', ')}.
+              </span>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  setPicked(new Set([update.base.name, ...update.fresh.map((r) => r.name)]));
+                  setMerging(true);
+                }}
+              >
+                Add to it
+              </button>
+            </div>
           )}
           <div className="row gap wrap">
             <button className="btn" disabled={chosen.length < 2} onClick={() => setMerging(true)}>

@@ -125,7 +125,7 @@ export default function MergeDialog({
     setResult(null);
     const writable = handle ? await handle.createWritable() : null;
     try {
-      const { blob, pages } = await mergeParts({
+      const { blob, pages, skipped } = await mergeParts({
         parts,
         series: seriesName,
         sink: writable ? (b) => writable.write(b) : undefined,
@@ -134,7 +134,7 @@ export default function MergeDialog({
       });
       if (writable) await writable.close();
       else if (blob) saveBlob(blob, name);
-      setResult(`Saved ${handle?.name ?? name}${folder ? ` in the folder “${folder.name}”` : ''}: ${parts.length} files, ${pages} pages. The original files were not changed.`);
+      setResult(`Saved ${handle?.name ?? name}${folder ? ` in the folder “${folder.name}”` : ''}: ${parts.length} files, ${pages} pages.${skipped ? ` ${skipped} repeated page${skipped === 1 ? ' was' : 's were'} skipped.` : ''} The original files were not changed.`);
       onMerged?.(parts.map((p) => p.file.name), name);
       toast('Merged into one .cbz');
     } catch (e) {
