@@ -37,22 +37,34 @@ export default function DownloadsPage() {
 
   return (
     <div className="page narrow">
-      <PageHeader title="Downloads">
-        <span className={`pill ${running ? 'ok' : 'idle'}`}>{running ? 'Running' : 'Paused'}</span>
-        {/* Starting with an empty queue makes the server wait ~30s for nothing, so don't offer it. */}
-        <button className="btn" onClick={() => toggle.mutate()} disabled={toggle.isPending || (!running && queue.length === 0)}>
-          {toggle.isPending ? 'Working…' : running ? 'Pause' : 'Start'}
-        </button>
-        <button className="btn ghost" onClick={() => clear.mutate()} disabled={!queue.length || clear.isPending}>
-          Clear queue
-        </button>
-      </PageHeader>
+      <PageHeader title="Downloads" />
 
       <ExportJobs />
       <PacedJobs />
 
+      <section className="paced">
+        <div className="row gap paced-head">
+          <h2>Server queue</h2>
+          <span className={`pill ${running ? 'ok' : 'idle'}`}>{running ? 'Running' : 'Idle'}</span>
+          {/* Starting with an empty queue makes the server wait ~30s for nothing, so the buttons only show with something queued. */}
+          {queue.length > 0 && (
+            <span className="paced-clear row gap">
+              <button className="btn" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
+                {toggle.isPending ? 'Working…' : running ? 'Pause server queue' : 'Start server queue'}
+              </button>
+              <button className="btn ghost" onClick={() => clear.mutate()} disabled={clear.isPending}>
+                Clear server queue
+              </button>
+            </span>
+          )}
+        </div>
+        <p className="muted small">
+          Chapters Suwayomi is downloading right now. These buttons only control this list, not the exports or paced downloads above, which have their own buttons and start the downloader themselves.
+        </p>
+      </section>
+
       {queue.length === 0 ? (
-        <Empty title="Nothing in the queue" hint="Bulk downloads are listed above under Paced downloads (use Show queue to see each chapter). Single chapters show up here." />
+        <Empty title="Nothing in the server queue" hint="Exports and paced downloads feed this list one chapter at a time, so it is empty between chapters." />
       ) : (
         <ul className="list">
           {queue.map((d) => (

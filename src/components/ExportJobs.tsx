@@ -5,9 +5,10 @@ import {
   cancelExport,
   chooseExportFile,
   clearFinishedExports,
+  needsDecision,
+  packWithoutParked,
   pauseExport,
   resumeExport,
-  skipExportChapter,
   useExportJobs,
   type ExportJob,
 } from '../lib/exportJobs';
@@ -39,18 +40,22 @@ function status(j: ExportJob, now: number): string {
 
 function Queue({ job }: { job: ExportJob }) {
   const byId = new Map(job.items.map((i) => [i.id, i]));
-  if (job.todo.length === 0) return <div className="muted small job-queue">All chapters are downloaded.</div>;
+  if (job.todo.length === 0 && job.parked.length === 0) return <div className="muted small job-queue">All chapters are downloaded.</div>;
+  const label = (cid: number) => byId.get(cid)?.label ?? `Chapter #${cid}`;
   return (
     <ul className="job-queue">
-      {job.todo.map((cid) => {
-        const failed = job.failedId === cid;
-        return (
-          <li key={cid} className={failed ? 'jq-failed' : undefined}>
-            <span className="grow">{byId.get(cid)?.label ?? `Chapter #${cid}`}</span>
-            <span className="muted small">{job.current === cid ? 'Downloading…' : failed ? 'Failed · Resume retries it' : 'Waiting'}</span>
-          </li>
-        );
-      })}
+      {job.parked.map((cid) => (
+        <li key={`p${cid}`} className="jq-failed">
+          <span className="grow">{label(cid)}</span>
+          <span className="muted small">Set aside after failing · retried at the end</span>
+        </li>
+      ))}
+      {job.todo.map((cid) => (
+        <li key={cid}>
+          <span className="grow">{label(cid)}</span>
+          <span className="muted small">{job.current === cid ? 'Downloading…' : 'Waiting'}</span>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -84,7 +89,8 @@ export default function ExportJobs() {
       <ul className="list">
         {visible.map((j) => {
           const total = j.items.length || 1;
-          const downloaded = total - j.todo.length;
+          const downloaded = total - j.todo.length - j.parked.length;
+          const decide = needsDecision(j);
           const pct = Math.round(((j.phase === 'packing' || j.state === 'done' ? (j.state === 'done' ? total : j.packed) : downloaded) / total) * 100);
           return (
             <li key={j.id} className="list-row paced-row">
@@ -93,15 +99,15 @@ export default function ExportJobs() {
                   {j.title}
                 </Link>
                 <div className="muted small">
-                  {what(j)} · {j.phase === 'packing' || j.state === 'done' ? `all ${total} chapters downloaded` : `${downloaded} of ${total} chapters downloaded`}
+                  {what(j)} · {j.phase === 'packing' || j.state === 'done' ? `all ${total} chapters downloaded` : `${downloaded} of ${total} chapters downloaded${j.parked.length ? ` · ${j.parked.length} set aside` : ''}`}
                 </div>
                 <div className="progress" aria-label="progress">
                   <div className={`progress-bar ${j.state === 'paused' ? 'err' : ''}`} style={{ width: `${pct}%` }} />
                 </div>
                 <div className="muted small">{status(j, now)}</div>
-                {j.phase === 'downloading' && j.todo.length > 0 && j.state !== 'done' && (
+                {j.phase === 'downloading' && j.todo.length + j.parked.length > 0 && j.state !== 'done' && (
                   <button className="btn ghost queue-toggle" onClick={() => toggle(j.id)} aria-expanded={open.has(j.id)}>
-                    {open.has(j.id) ? '▾ Hide queue' : `▸ Show queue (${j.todo.length})`}
+                    {open.has(j.id) ? '▾ Hide queue' : `▸ Show queue (${j.todo.length + j.parked.length})`}
                   </button>
                 )}
                 {open.has(j.id) && <Queue job={j} />}
@@ -118,12 +124,12 @@ export default function ExportJobs() {
               )}
               {j.state === 'paused' && !j.needsFile && (
                 <button className="btn" onClick={() => resumeExport(j.id)}>
-                  Resume
+                  {decide ? 'Retry' : 'Resume'}
                 </button>
               )}
-              {j.state === 'paused' && j.failedId !== undefined && (
-                <button className="btn ghost" onClick={() => skipExportChapter(j.id)} title="Leave this chapter out of the download step; packing reads it from the source instead">
-                  Skip
+              {decide && (
+                <button className="btn ghost" onClick={() => packWithoutParked(j.id)} title="Write the one file now, without the chapters that would not download">
+                  Pack without them
                 </button>
               )}
               {(j.state === 'running' || j.state === 'paused') && (

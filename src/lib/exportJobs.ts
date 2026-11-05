@@ -31,6 +31,12 @@ export interface ExportJob {
   meta: PackMeta;
   /** Chapter ids still to download, in order. */
   todo: number[];
+  /** Chapters that failed 3 times: set aside so the rest can go on, retried once at the end. */
+  parked: number[];
+  /** 1 = first pass; 2 = the set-aside chapters have had their second pass. */
+  round: 1 | 2;
+  /** Labels of chapters you chose to leave out of the file. */
+  leftOut?: string[];
   phase: 'downloading' | 'packing';
   state: 'running' | 'paused' | 'done' | 'cancelled';
   /** Chapters downloaded (or skipped) so far, and chapters packed so far. */
@@ -43,19 +49,19 @@ export interface ExportJob {
   current?: number;
   /** When the next chapter starts (ms since epoch) while waiting. */
   nextAt?: number;
-  /** The chapter that made the job pause, if any. */
-  failedId?: number;
   failStreak: number;
   createdAt: number;
 }
 
 const KEY = 'mangadeck.exportjobs';
 const MAX_FAIL_STREAK = 3;
+/** How long to let a source cool down before the set-aside chapters get their second pass. */
+const RETRY_COOLDOWN_MS = 5 * 60_000;
 
 function read(): ExportJob[] {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as ExportJob[];
+    if (raw) return (JSON.parse(raw) as ExportJob[]).map((j) => ({ ...j, parked: j.parked ?? [], round: j.round ?? 1 }));
   } catch {
     /* ignore */
   }
@@ -124,6 +130,8 @@ export function startExportJob(o: {
     items: o.items,
     meta: o.meta,
     todo: o.todo,
+    parked: [],
+    round: 1,
     phase: o.todo.length ? 'downloading' : 'packing',
     state: 'running',
     done: 0,
@@ -141,8 +149,16 @@ export function pauseExport(id: string) {
   aborts.get(id)?.abort();
 }
 
+/** True when every chapter has been tried and only the set-aside ones are left: the job waits for you. */
+export function needsDecision(j: ExportJob): boolean {
+  return j.state === 'paused' && j.phase === 'downloading' && j.todo.length === 0 && j.parked.length > 0;
+}
+
+/** Continue a paused job. When only set-aside chapters are left, this gives them another round. */
 export function resumeExport(id: string) {
-  patch(id, { state: 'running', note: undefined, failStreak: 0, failedId: undefined, needsFile: false });
+  const j = jobs.find((x) => x.id === id);
+  const retry = j && needsDecision(j) ? { todo: j.parked, parked: [] as number[], round: 2 as const } : {};
+  patch(id, { state: 'running', note: undefined, failStreak: 0, needsFile: false, ...retry });
 }
 
 export function cancelExport(id: string) {
@@ -151,11 +167,21 @@ export function cancelExport(id: string) {
   handles.delete(id);
 }
 
-/** Give up on the chapter that keeps failing: packing then tries to read it straight from the source. */
-export function skipExportChapter(id: string) {
+/** Give up on the set-aside chapters and write the one file without them. */
+export function packWithoutParked(id: string) {
   const j = jobs.find((x) => x.id === id);
-  if (!j || j.todo.length === 0) return;
-  patch(id, { todo: j.todo.slice(1), done: j.done + 1, state: 'running', note: undefined, failStreak: 0, failedId: undefined });
+  if (!j || j.parked.length === 0) return;
+  const gone = new Set(j.parked);
+  const leftOut = j.items.filter((i) => gone.has(i.id)).map((i) => i.label);
+  patch(id, {
+    items: j.items.filter((i) => !gone.has(i.id)),
+    parked: [],
+    leftOut: [...(j.leftOut ?? []), ...leftOut],
+    phase: 'packing',
+    state: 'running',
+    note: undefined,
+    failStreak: 0,
+  });
 }
 
 /** Must be called straight from a click: asks where to save the file, then carries on. */
@@ -186,7 +212,24 @@ async function downloadStep(job: ExportJob) {
   const id = job.id;
   const next = job.todo[0];
   if (next === undefined) {
-    patch(id, { phase: 'packing', current: undefined, nextAt: undefined });
+    if (job.parked.length > 0 && job.round === 1) {
+      // Everything else is in. Cool down, then give the set-aside chapters their second pass.
+      patch(id, { current: undefined, note: `Retrying ${job.parked.length} set-aside chapter${job.parked.length === 1 ? '' : 's'} soon` });
+      await waitFor(id, RETRY_COOLDOWN_MS);
+      const cur = jobs.find((j) => j.id === id);
+      if (cur && cur.state === 'running') patch(id, { todo: cur.parked, parked: [], round: 2, note: undefined, failStreak: 0 });
+      return;
+    }
+    if (job.parked.length > 0) {
+      patch(id, {
+        state: 'paused',
+        current: undefined,
+        nextAt: undefined,
+        note: `${job.parked.length} chapter${job.parked.length === 1 ? '' : 's'} could not be downloaded after retrying. Retry them, or write the file without them.`,
+      });
+      return;
+    }
+    patch(id, { phase: 'packing', current: undefined, nextAt: undefined, note: undefined });
     return;
   }
   const cfg = paceConfig(getSettings());
@@ -213,13 +256,15 @@ async function downloadStep(job: ExportJob) {
   }
   const failStreak = cur.failStreak + 1;
   if (failStreak >= MAX_FAIL_STREAK) {
+    // Set this chapter aside and keep going with the rest; it gets another go at the end.
     patch(id, {
-      state: 'paused',
+      todo: cur.todo.slice(1),
+      parked: [...cur.parked, next],
       failStreak: 0,
       current: undefined,
-      failedId: next,
-      note: `Paused: a chapter failed ${MAX_FAIL_STREAK} times in a row. Resume to try again, or skip it (the file then reads it straight from the source).`,
+      note: `A chapter failed ${MAX_FAIL_STREAK} times and was set aside. Carrying on with the rest; it is retried at the end.`,
     });
+    await waitFor(id, waitMs(cfg, cur.done + 1));
     return;
   }
   const wait = backoffMs(failStreak);
@@ -258,7 +303,7 @@ async function packStep(job: ExportJob) {
       title: job.title,
       label: job.volume === 0 ? 'Complete series .cbz' : `Vol. ${String(job.volume).padStart(2, '0')} .cbz`,
       ok: true,
-      note: `${job.items.length} chapters, ${pages} pages`,
+      note: `${job.items.length} chapters, ${pages} pages${job.leftOut?.length ? `. Left out: ${job.leftOut.join(', ')}` : ''}`,
       where: writable ? `${job.fileName} (where you chose to save it)` : `${job.fileName} in your browser's Downloads folder`,
     });
   } catch (e) {

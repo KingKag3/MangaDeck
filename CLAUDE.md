@@ -132,13 +132,16 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
 - **`.cbz` export jobs** (`src/lib/exportJobs.ts`, UI `components/ExportJobs.tsx` on the Downloads page): `MangaPage.pack(volume)`
   (volume 0 = whole series) only asks for the save location (file picker must come from the click), then calls `startExportJob()`.
   The runner (`startExporter()` from `Layout`, Web Lock `mangadeck-exporter`) has two phases: `downloading` (`downloadOne()` per
-  missing chapter with `waitMs` pacing, backoff, pause after 3 failures, `skipExportChapter`) then `packing` (`buildCbz` streamed
-  to the saved file handle). Jobs persist in `mangadeck.exportjobs`. File handles live in memory only, so after a reload a
+  missing chapter with `waitMs` pacing and backoff; a chapter failing 3 times is moved to `job.parked` and the job carries on;
+  when `todo` is empty the parked ones get one more pass after a 5 min cool-down (`round` 1 to 2); if some still fail the job
+  pauses (`needsDecision()`): Retry (`resumeExport`) or `packWithoutParked` which drops them from `items` and records `leftOut`)
+  then `packing` (`buildCbz` streamed to the saved file handle). Always ONE output file, never parts. Jobs persist in `mangadeck.exportjobs`. File handles live in memory only, so after a reload a
   job at the packing phase pauses with `needsFile` and the card shows "Choose file" (`chooseExportFile`). A pack failure
   pauses the job (it does NOT log a history failure; the job is the record); success logs one history entry.
   `buildCbz` retries `fetchPages` and every image fetch 4 times (`withRetry` in `export.ts`). `packEachVolume` (folder of
   volumes) is still the old inline flow in `MangaPage` using `queueAndWait()`. Not yet tested end to end on a real series;
-  known gaps: no ZIP64 (4 GB / 65k files), a stream cannot resume mid-file.
+  known gaps: a stream cannot resume mid-file. `zip.ts` writes ZIP64 end/central records past 4 GB or 65,535 files (one entry
+  inside must still be under 4 GB; `ZipBuilder` takes optional tiny `limits` so tests can exercise ZIP64).
 - **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file
   would start a second Suwayomi on 4567). Use `$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck`.
   Suwayomi keeps downloads as `.cbz` per chapter under its downloads folder; deleting through the API

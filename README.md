@@ -127,13 +127,15 @@ Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and
 - Paced downloads wait in the browser, so keep a Mangadeck tab open while a long job runs (a hidden tab slows its
   timers, which only makes the waits longer). The server has no download delay setting of its own.
 - **.cbz exports and resuming**: an export job (`mangadeck.exportjobs` in localStorage) first downloads the missing chapters
-  through Suwayomi, then packs all chapters into one zip. Download failures retry with backoff and pause after 3 in a
-  row (Resume retries, Skip leaves that chapter to be read from the source while packing). Page and image fetches while
-  packing retry 4 times. A zip is written as one stream, so a failed or paused pack restarts the file, but downloaded
+  through Suwayomi, then packs all chapters into one zip. A chapter that fails 3 times (after 1 and 2 minute waits) is
+  set aside and the rest keep downloading; after a 5 minute cool-down the set-aside chapters get one more pass. If some
+  still fail, the job pauses with **Retry** and **Pack without them** (the one file is written without those chapters,
+  and the history entry names them). Page and image fetches while packing retry 4 times. A zip is written as one stream, so a failed or paused pack restarts the file, but downloaded
   chapters stay on the server, so that is quick. The browser only gives out a save location from a click, so it is kept
   in memory: after a page reload a job waiting to pack shows **Choose file**. Jobs run from `Layout` under a Web Lock
-  (one tab). Known limit: the zip writer has no ZIP64, so a single file over 4 GB or 65k pages fails; very long series
-  may need per-volume files. Not yet tested end to end against a real series (the download and pause steps were).
+  (one tab). The zip writer uses ZIP64 records, so one file can pass 4 GB and 65k pages (unit-tested with tiny limits, not
+  with a real 4 GB file). Without Chrome/Edge's save-to-disk the archive is built in memory, which browsers cap at about
+  2 GB. Not yet tested end to end against a real series (the download and pause steps were).
 - `.cbz` is a plain zip, not a RAR, so it opens in any comic reader; real `.cbr` needs WinRAR's tool.
 - The stock WebUI keeps running inside Suwayomi; Mangadeck ignores it. Mangadeck is just another client of the
   same API, so you can use both side by side.
