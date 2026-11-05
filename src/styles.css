@@ -1786,6 +1786,7 @@ input[type='range'] {
   padding: 0;
   max-height: 260px;
   overflow-y: auto;
+  overflow-x: hidden;
   font-size: 0.85rem;
 }
 .job-queue li {
@@ -1794,6 +1795,11 @@ input[type='range'] {
   gap: 10px;
   padding: 4px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.queue-toggle {
+  margin-top: 8px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
 }
 .job-queue .jq-failed {
   color: #ff8a8a;

@@ -98,8 +98,8 @@ export default function PacedJobs() {
                 </div>
                 <div className="muted small">{status(j, now)}</div>
                 {j.queue.length > 0 && (
-                  <button className="link-btn" onClick={() => toggle(j.id)}>
-                    {open.has(j.id) ? 'Hide queue' : `Show queue (${j.queue.length})`}
+                  <button className="btn ghost queue-toggle" onClick={() => toggle(j.id)} aria-expanded={open.has(j.id)}>
+                    {open.has(j.id) ? '▾ Hide queue' : `▸ Show queue (${j.queue.length})`}
                   </button>
                 )}
                 {open.has(j.id) && <JobQueue job={j} />}
