@@ -430,16 +430,7 @@ export function summarizeVolumes(chapters: Chapter[], ranges: VolumeRange[] | un
  * chapters), oldest first. Unnumbered chapters come last, in source order.
  */
 export function volumeChapters(all: Chapter[], ranges: VolumeRange[] | undefined, volume: number): Chapter[] {
-  const rank = new Map(listGroups(all).map((g, i) => [g.name, i]));
-  const rankOf = (c: Chapter) => rank.get(groupOf(c)) ?? 0;
-  const best = new Map<string, Chapter>();
-  for (const c of all) {
-    if (volumeOf(c, ranges) !== volume) continue;
-    const key = c.chapterNumber >= 0 ? `n${c.chapterNumber}` : `id${c.id}`;
-    const have = best.get(key);
-    if (!have || rankOf(c) < rankOf(have)) best.set(key, c);
-  }
-  return [...best.values()].sort((a, b) => {
+  return oneCopyEach(all, (c) => volumeOf(c, ranges) === volume).sort((a, b) => {
     if ((a.chapterNumber >= 0) !== (b.chapterNumber >= 0)) return a.chapterNumber >= 0 ? -1 : 1;
     return a.chapterNumber >= 0 ? a.chapterNumber - b.chapterNumber : a.sourceOrder - b.sourceOrder;
   });
@@ -451,19 +442,42 @@ export interface PackItem {
 }
 
 /**
+ * One copy of each chapter, taken from the group with the most chapters. Numbered chapters match by number; unnumbered ones
+ * (extras, "Chapter ?") match by name, the nth chapter with that name in its group against the nth in the others, so
+ * several groups' copies of one extra count once while two different extras of one group both stay.
+ * `keep` filters first (e.g. one volume).
+ */
+export function oneCopyEach(all: Chapter[], keep: (c: Chapter) => boolean = () => true): Chapter[] {
+  const rank = new Map(listGroups(all).map((g, i) => [g.name, i]));
+  const rankOf = (c: Chapter) => rank.get(groupOf(c)) ?? 0;
+  const nth = new Map<string, number>();
+  const best = new Map<string, Chapter>();
+  for (const c of all) {
+    if (!keep(c)) continue;
+    let key: string;
+    if (c.chapterNumber >= 0) key = `n${c.chapterNumber}`;
+    else {
+      const nm = norm(c.name);
+      if (!nm) key = `id${c.id}`;
+      else {
+        const gk = `${groupOf(c)}|${nm}`;
+        const i = nth.get(gk) ?? 0;
+        nth.set(gk, i + 1);
+        key = `u${nm}#${i}`;
+      }
+    }
+    const have = best.get(key);
+    if (!have || rankOf(c) < rankOf(have)) best.set(key, c);
+  }
+  return [...best.values()];
+}
+
+/**
  * Every chapter, one copy per chapter number (from the group with the most chapters), oldest first,
  * each tagged with its volume. Chapters outside every volume get volume null and sort last.
  */
 export function seriesChapters(all: Chapter[], ranges: VolumeRange[] | undefined): PackItem[] {
-  const rank = new Map(listGroups(all).map((g, i) => [g.name, i]));
-  const rankOf = (c: Chapter) => rank.get(groupOf(c)) ?? 0;
-  const best = new Map<string, Chapter>();
-  for (const c of all) {
-    const key = c.chapterNumber >= 0 ? `n${c.chapterNumber}` : `id${c.id}`;
-    const have = best.get(key);
-    if (!have || rankOf(c) < rankOf(have)) best.set(key, c);
-  }
-  const items = [...best.values()].map((chapter) => ({ chapter, volume: volumeOf(chapter, ranges) }));
+  const items = oneCopyEach(all).map((chapter) => ({ chapter, volume: volumeOf(chapter, ranges) }));
   const v = (i: PackItem) => i.volume ?? Infinity;
   return items.sort((a, b) => {
     if (v(a) !== v(b)) return v(a) < v(b) ? -1 : 1;

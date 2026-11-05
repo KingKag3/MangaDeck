@@ -46,6 +46,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   preferring the group with the most chapters). Chapters with no scanlator are "Unknown group"; unnumbered chapters
   (`chapterNumber < 0`) are never treated as duplicates. `ReaderPage` uses the same `visibleChapters()` so next/previous
   chapter follows the chosen group, and it always keeps the chapter currently open (`keepId`).
+  **Exports and groups**: `.cbz` exports (`packable` in `MangaPage`) follow the chosen group and "fill gaps" like the reader (`visibleChapters`), then
+  linked-source gap chapters are added. `oneCopyEach()` (used by `seriesChapters` / `volumeChapters`) keeps one copy per chapter number from the biggest
+  group; unnumbered chapters match by name, the nth with that name in its group against the nth in the others (so an extra released by three groups
+  counts once, two different extras of one group both stay). **Download unread / Download all** with several groups and no group chosen asks first
+  (`pickCopies`): OK downloads one copy of each chapter, Cancel stops so a group can be picked. (Select chapters by hand to download every copy.)
 - **Volumes**: Suwayomi has no volume data. `lookupVolumes()` reads Wikipedia "List of X chapters/volumes" pages. Pages come
   in several styles (numbered lists, `#` lists, "* Chapter: 18–26" bullets) and can hold several series (light novels,
   the manga, spin-offs), each a run of volumes that restarts at 1. `parseVolumeRanges(wikitext, title)` reads every run and

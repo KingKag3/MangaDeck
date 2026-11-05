@@ -547,3 +547,36 @@ describe('titleVariants, acronym prefix', () => {
     expect(titleVariants('Re:Zero: Starting Life')).not.toContain('Starting Life');
   });
 });
+
+import { oneCopyEach } from './volumes';
+
+describe('oneCopyEach (several scanlation groups)', () => {
+  const mk = (n: number, scanlator: string, id: number, name?: string) => ({ ...ch(n, name), id, scanlator }) as Chapter;
+  it('keeps one copy per chapter number, from the biggest group', () => {
+    const all = [mk(1, 'Alpha', 1), mk(2, 'Alpha', 2), mk(3, 'Alpha', 3), mk(1, 'Delta', 4), mk(2, 'Delta', 5), mk(1, 'Gamma', 6)];
+    const out = oneCopyEach(all);
+    expect(out.map((c) => c.id).sort()).toEqual([1, 2, 3]);
+  });
+  it('counts one extra from several groups once, but keeps two different extras of one group', () => {
+    const all = [
+      mk(-1, 'Alpha', 1, 'Extra'),
+      mk(-1, 'Alpha', 2, 'Bonus page'),
+      mk(-1, 'Alpha', 3, 'Chapter 1'),
+      mk(-1, 'Delta', 4, 'EXTRA!'),
+      mk(1, 'Alpha', 6),
+      mk(1, 'Delta', 7),
+    ];
+    const out = oneCopyEach(all);
+    expect(out.map((c) => c.name).sort()).toEqual(['Bonus page', 'Chapter 1', 'Chapter 1', 'Extra']);
+    // Alpha is the biggest group here, so its copies win.
+    expect(out.every((c) => c.scanlator === 'Alpha')).toBe(true);
+  });
+  it('keeps same-named unnumbered chapters of one group apart', () => {
+    const all = [mk(-1, 'Alpha', 1, 'Extra'), mk(-1, 'Alpha', 2, 'Extra'), mk(-1, 'Delta', 3, 'Extra')];
+    expect(oneCopyEach(all)).toHaveLength(2);
+  });
+  it('feeds seriesChapters and volumeChapters', () => {
+    const all = [mk(1, 'Alpha', 1), mk(1, 'Delta', 2), mk(-1, 'Alpha', 3, 'Extra'), mk(-1, 'Delta', 4, 'Extra')];
+    expect(seriesChapters(all, undefined)).toHaveLength(2);
+  });
+});

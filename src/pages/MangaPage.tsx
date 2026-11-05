@@ -6,8 +6,8 @@ import { Cover } from '../components/Cover';
 import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
-import { listGroups, visibleChapters } from '../lib/groups';
-import { PARSER_VERSION, keepExtras, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
+import { groupOf, listGroups, visibleChapters } from '../lib/groups';
+import { PARSER_VERSION, keepExtras, mergeNewVolumes, oneCopyEach, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { lookupVolumesEverywhere } from '../lib/fandom';
 import ShareDialog from '../components/ShareDialog';
@@ -286,6 +286,23 @@ export default function MangaPage() {
     );
   }
 
+  // With every group showing, "Download all" would queue each group's copy of every chapter. Offer one copy of each instead.
+  // Returns the chapter ids to download, or null when the user backs out to pick a group first.
+  function pickCopies(list: Chapter[]): number[] | null {
+    const ids = list.map((c) => c.id);
+    const groupCount = new Set(list.map((c) => groupOf(c))).size;
+    if (activeGroup || groupCount < 2) return ids;
+    const one = oneCopyEach(list).map((c) => c.id);
+    if (one.length >= ids.length) return ids;
+    const ok = confirm(
+      `${groupCount} groups released this manga, so that is ${ids.length} downloads for ${one.length} chapters.
+
+OK: download one copy of each chapter (${one.length}, from the biggest group).
+Cancel: stop, so you can pick a group in the group bar first.`,
+    );
+    return ok ? one : null;
+  }
+
   const removeDownloads = useMutation({
     mutationFn: (ids: number[]) => M.deleteDownloads(ids),
     onSuccess: () => {
@@ -301,15 +318,17 @@ export default function MangaPage() {
     queries: (settings.links[String(id)] ?? []).map((l) => ({ queryKey: ['chapters', l.mangaId], queryFn: () => Q.chapters(l.mangaId), staleTime: 60_000 })),
   });
   const linkedData = linkedLists.map((q) => q.data);
-  const packable = useMemo(
-    () => withLinkedChapters(everything, linkedData.filter((d): d is Chapter[] => !!d)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [everything, ...linkedData],
-  );
   const groups = useMemo(() => listGroups(everything), [everything]);
   const groupPref = settings.groups[String(id)];
   // `all` = the chapters of the chosen group (or everything when no group is chosen)
   const all = useMemo(() => visibleChapters(everything, groupPref), [everything, groupPref]);
+  // The .cbz exports follow the chosen group (and "fill gaps") like the reader does; with no group chosen they take one copy of
+  // each chapter from the biggest group. Chapters only a linked source has are added on top.
+  const packable = useMemo(
+    () => withLinkedChapters(all, linkedData.filter((d): d is Chapter[] => !!d)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [all, ...linkedData],
+  );
 
   const volumeInfo = settings.volumes[String(id)];
   const desc = useMemo(() => parseDescription(manga.data?.description), [manga.data?.description]);
@@ -596,7 +615,8 @@ export default function MangaPage() {
             <button
               className="btn ghost"
               onClick={() => {
-                const ids = all.filter((c) => !c.isDownloaded && !c.isRead).map((c) => c.id);
+                const ids = pickCopies(all.filter((c) => !c.isDownloaded && !c.isRead));
+                if (ids === null) return;
                 if (ids.length) paced(ids);
                 else toast('No unread chapters left to download');
               }}
@@ -606,7 +626,8 @@ export default function MangaPage() {
             <button
               className="btn ghost"
               onClick={() => {
-                const ids = all.filter((c) => !c.isDownloaded).map((c) => c.id);
+                const ids = pickCopies(all.filter((c) => !c.isDownloaded));
+                if (ids === null) return;
                 if (ids.length) paced(ids);
                 else toast('Everything here is already downloaded');
               }}
