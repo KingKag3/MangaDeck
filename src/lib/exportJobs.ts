@@ -140,8 +140,28 @@ export function startExportJob(o: {
     createdAt: Date.now(),
   };
   if (o.handle) handles.set(job.id, o.handle);
+  askToNotify();
   write([job, ...jobs]);
   return { id: job.id, existing: false };
+}
+
+/** Ask once (from the click that starts an export) so a finished file can ping you when the tab is in the background. */
+function askToNotify() {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
+  } catch {
+    /* ignore */
+  }
+}
+
+function notifyDone(title: string, body: string) {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+      new Notification(title, { body, icon: '/logo.png' });
+    }
+  } catch {
+    /* ignore */
+  }
 }
 
 export function pauseExport(id: string) {
@@ -296,6 +316,7 @@ async function packStep(job: ExportJob) {
     if (writable) await writable.close();
     else if (blob) saveBlob(blob, job.fileName);
     handles.delete(id);
+    notifyDone('Export finished', `${job.title}: ${job.fileName}`);
     patch(id, { state: 'done', packed: job.items.length, note: undefined });
     logDownload({
       kind: job.volume === 0 ? 'series' : 'volume',

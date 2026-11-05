@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Cover } from './Cover';
 import { dayBucket, timeAgo } from '../lib/format';
 import { clearExports, clearHistory, useHistory } from '../lib/history';
 
@@ -50,6 +51,9 @@ export default function HistoryList() {
                 <span className={`history-mark ${h.ok ? 'ok' : 'err'}`} aria-label={h.ok ? 'Finished' : 'Failed'}>
                   {h.ok ? '✓' : '✕'}
                 </span>
+                <Link to={`/manga/${h.mangaId}`} className="thumb history-cover" aria-hidden="true" tabIndex={-1}>
+                  <Cover path={`/api/v1/manga/${h.mangaId}/thumbnail`} alt="" />
+                </Link>
                 <div className="grow">
                   <Link to={`/manga/${h.mangaId}`} className="row-title">
                     {h.title}

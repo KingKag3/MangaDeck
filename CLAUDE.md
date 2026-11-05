@@ -139,7 +139,7 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   job at the packing phase pauses with `needsFile` and the card shows "Choose file" (`chooseExportFile`). A pack failure
   pauses the job (it does NOT log a history failure; the job is the record); success logs one history entry.
   `buildCbz` retries `fetchPages` and every image fetch 4 times (`withRetry` in `export.ts`). `packEachVolume` (folder of
-  volumes) is still the old inline flow in `MangaPage` using `queueAndWait()`. Not yet tested end to end on a real series;
+  volumes) starts one export job per volume (last volume first, since new jobs go on top and the runner takes the top running job), each with a lazy handle that creates its file in the picked folder only when packed; files already there are skipped. Finished exports notify when the tab is hidden (permission asked on start). Not yet tested end to end on a real series;
   known gaps: a stream cannot resume mid-file. `zip.ts` writes ZIP64 end/central records past 4 GB or 65,535 files (one entry
   inside must still be under 4 GB; `ZipBuilder` takes optional tiny `limits` so tests can exercise ZIP64).
 - **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file

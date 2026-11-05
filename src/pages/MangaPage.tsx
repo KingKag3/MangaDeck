@@ -15,10 +15,9 @@ import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
-import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
-import { logDownload } from '../lib/history';
-import { startExportJob } from '../lib/exportJobs';
-import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
+import { estimateWaitMs, formatDuration, paceConfig, startPacedJob } from '../lib/pacer';
+import { startExportJob, useExportJobs } from '../lib/exportJobs';
+import { canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, safeFileName, type PackMeta } from '../lib/export';
 import {
   effectivePrefs,
   setGroupPref,
@@ -51,15 +50,8 @@ export default function MangaPage() {
   const [allTags, setAllTags] = useState(false);
   const [volFilter, setVolFilter] = useState<number | null>(null);
 
-  // volume: the volume being packed, or 0 for the whole series
-  const [packing, setPacking] = useState<{
-    volume: number;
-    done: number;
-    total: number;
-    phase: 'downloading' | 'packing';
-    batch?: { index: number; total: number };
-  } | null>(null);
-  const packAbort = useRef<AbortController | null>(null);
+  // Exports of this series that are running or paused (they live on the Downloads page).
+  const exporting = useExportJobs().filter((j) => j.mangaId === id && (j.state === 'running' || j.state === 'paused'));
 
   /** What goes into ComicInfo.xml for the whole series (volume 0) or one volume. */
   function packMeta(volume: number, ranges: VolumeRange[] | undefined): PackMeta {
@@ -77,7 +69,6 @@ export default function MangaPage() {
   }
 
   async function pack(volume: number) {
-    if (packing) return;
     const ranges = settings.volumes[String(id)]?.ranges;
     const items =
       volume === 0
@@ -116,9 +107,9 @@ export default function MangaPage() {
     );
   }
 
-  /** Every volume as its own .cbz, into one folder you pick. Files already in the folder are skipped, so it can resume. */
+  /** Every volume as its own .cbz, into one folder you pick. Each volume is a saved export job (see lib/exportJobs.ts), so
+   *  it shows on the Downloads page and can be resumed. Files already in the folder are skipped. */
   async function packEachVolume() {
-    if (packing) return;
     const ranges = settings.volumes[String(id)]?.ranges;
     const list = summarizeVolumes(packable, ranges).map((v) => v.volume);
     if (!list.length) return;
@@ -139,67 +130,41 @@ export default function MangaPage() {
       }
       if (!dir) return;
     }
-    const abort = new AbortController();
-    packAbort.current = abort;
-    const cfg = paceConfig(settings);
-    let saved = 0;
+    let started = 0;
     let skipped = 0;
-    try {
-      for (const [i, volume] of list.entries()) {
-        abort.signal.throwIfAborted();
-        const fileName = `${safeFileName(series)} - Vol. ${String(volume).padStart(2, '0')}.cbz`;
-        if (dir && (await fileSizeIn(dir, fileName)) > 0) {
-          skipped++;
-          continue;
-        }
-        const items = volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
-        const batch = { index: i + 1, total: list.length };
-        const missing = items.filter((it) => !it.chapter.isDownloaded).map((it) => it.chapter.id);
-        if (missing.length) {
-          setPacking({ volume, done: 0, total: missing.length, phase: 'downloading', batch });
-          const failed = await queueAndWait(missing, (done, total) => setPacking({ volume, done, total, phase: 'downloading', batch }), abort.signal);
-          refreshAll();
-          if (failed) toast(`Vol. ${volume}: ${failed} chapter${failed === 1 ? '' : 's'} failed to download; fetching from the source instead`, 'error');
-        }
-        setPacking({ volume, done: 0, total: items.length, phase: 'packing', batch });
-        const writable = dir ? await (await dir.getFileHandle(fileName, { create: true })).createWritable() : null;
-        try {
-          const { blob } = await buildCbz({
-            series,
-            items,
-            volume,
-            meta: packMeta(volume, ranges),
-            sink: writable ? (part) => writable.write(part) : undefined,
-            onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing', batch }),
-            signal: abort.signal,
-          });
-          if (writable) await writable.close();
-          else if (blob) saveBlob(blob, fileName);
-          saved++;
-          logDownload({ kind: 'volume', mangaId: id, title: series, label: `Vol. ${String(volume).padStart(2, '0')} .cbz`,
-            ok: true,
-            note: `${items.length} chapters`,
-            where: dir ? `${fileName} in the folder “${dir.name}” you picked` : `${fileName} in your browser's Downloads folder`,
-          });
-        } catch (e) {
-          // Do not leave a half-written (or empty) file behind: the next run would think it is done.
-          if (writable) {
-            await writable.abort().catch(() => undefined);
-            await dir?.removeEntry(fileName).catch(() => undefined);
-          }
-          throw e;
-        }
-        // Same politeness as between chapters, before the next volume starts downloading.
-        if (missing.length && i < list.length - 1) await sleep(waitMs(cfg, 1), abort.signal);
+    // New jobs go to the top of the list and the runner takes the top one first, so start the last volume first.
+    for (const volume of [...list].reverse()) {
+      const fileName = `${safeFileName(series)} - Vol. ${String(volume).padStart(2, '0')}.cbz`;
+      if (dir && (await fileSizeIn(dir, fileName)) > 0) {
+        skipped++;
+        continue;
       }
-      toast(`Saved ${saved} volume file${saved === 1 ? '' : 's'}${skipped ? `, skipped ${skipped} already in the folder` : ''}`);
-    } catch (e) {
-      if (abort.signal.aborted) toast(`Cancelled after ${saved} volume file${saved === 1 ? '' : 's'}`);
-      else errorToast(e);
-    } finally {
-      packAbort.current = null;
-      setPacking(null);
+      const items = volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
+      if (!items.length) continue;
+      const folder = dir;
+      // The file is only created when its volume is packed, so waiting volumes leave no empty files behind.
+      const handle = folder
+        ? { name: fileName, createWritable: async () => (await (await folder.getFileHandle(fileName, { create: true })).createWritable()) }
+        : null;
+      const r = startExportJob({
+        mangaId: id,
+        title: series,
+        volume,
+        fileName,
+        items: items.map((i) => ({ id: i.chapter.id, chapterNumber: i.chapter.chapterNumber, volume: i.volume, label: chapterLabel(i.chapter) })),
+        todo: items.filter((i) => !i.chapter.isDownloaded).map((i) => i.chapter.id),
+        meta: packMeta(volume, ranges),
+        handle,
+      });
+      if (!r.existing) started++;
     }
+    toast(
+      started
+        ? `Export started: ${started} volume file${started === 1 ? '' : 's'}${skipped ? `, ${skipped} already in the folder skipped` : ''}. Follow it on the Downloads page; if it fails you can resume it there.`
+        : skipped
+          ? 'Every volume is already in that folder.'
+          : 'Those volumes are already being exported.',
+    );
   }
 
   const findVolumes = useMutation({
@@ -596,30 +561,22 @@ export default function MangaPage() {
             <button className="btn ghost" onClick={() => setEditVolumes(true)} title="Type or paste which chapters are in each volume">
               {volumeInfo ? `Edit volumes (${volumeInfo.ranges.length})` : 'Set volumes'}
             </button>
-            {packing ? (
-              <button className="btn ghost" onClick={() => packAbort.current?.abort()}>
-                {packing.phase === 'downloading' ? 'Downloading' : 'Packing'} {packing.volume === 0 ? '' : `Vol. ${packing.volume}${packing.batch ? ` (${packing.batch.index} of ${packing.batch.total})` : ''} `}{packing.done}/{packing.total} · Cancel
+              <button
+                className="btn ghost"
+                onClick={() => pack(0)}
+                title="Download every chapter as one .cbz (one copy per chapter, ordered by volume when known)"
+              >
+                ⬇ All as .cbz
               </button>
-            ) : (
-              <>
+              {volumes.length > 0 && (
                 <button
                   className="btn ghost"
-                  onClick={() => pack(0)}
-                  title="Download every chapter as one .cbz (one copy per chapter, ordered by volume when known)"
+                  onClick={packEachVolume}
+                  title="Save every volume as its own .cbz into a folder you pick (files already there are skipped, so it can resume)"
                 >
-                  ⬇ All as .cbz
+                  ⬇ Each volume as .cbz
                 </button>
-                {volumes.length > 0 && (
-                  <button
-                    className="btn ghost"
-                    onClick={packEachVolume}
-                    title="Save every volume as its own .cbz into a folder you pick (files already there are skipped, so it can resume)"
-                  >
-                    ⬇ Each volume as .cbz
-                  </button>
-                )}
-              </>
-            )}
+              )}
             <button className="btn ghost" onClick={() => setAsc(!asc)}>
               {asc ? '↑ Oldest first' : '↓ Newest first'}
             </button>
@@ -786,11 +743,11 @@ export default function MangaPage() {
                           </button>
                           <button
                             className="link-btn"
-                            disabled={!!packing}
+                            disabled={exporting.some((j) => j.volume === vol)}
                             onClick={() => pack(vol)}
                             title="Download this volume as one .cbz comic file"
                           >
-                            {packing?.volume === vol ? `${packing.phase === 'downloading' ? 'Downloading' : 'Packing'} ${packing.done}/${packing.total}…` : '⬇ Download .cbz'}
+                            {exporting.some((j) => j.volume === vol) ? 'Exporting… (see Downloads)' : '⬇ Download .cbz'}
                           </button>
                         </span>
                       )}
