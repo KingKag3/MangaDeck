@@ -50,7 +50,7 @@ export default function DownloadsPage() {
       <PacedJobs />
 
       {queue.length === 0 ? (
-        <Empty title="Nothing in the queue" hint="Download chapters from a manga page and they'll show up here." />
+        <Empty title="Nothing in the queue" hint="Bulk downloads are listed above under Paced downloads (use Show queue to see each chapter). Single chapters show up here." />
       ) : (
         <ul className="list">
           {queue.map((d) => (

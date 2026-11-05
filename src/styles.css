@@ -1780,6 +1780,24 @@ input[type='range'] {
 .paced-row .row-title {
   display: block;
 }
+.job-queue {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
+.job-queue li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.job-queue .jq-failed {
+  color: #ff8a8a;
+}
 
 .linked-sources {
   margin-top: 6px;

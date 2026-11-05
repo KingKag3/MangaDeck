@@ -222,6 +222,14 @@ export function cancelJob(id: string) {
   aborts.get(id)?.abort();
 }
 
+/** Drop one chapter from a job's waiting list (not the one being downloaded right now). */
+export function removeFromJob(id: string, chapterId: number) {
+  const job = jobs.find((j) => j.id === id);
+  if (!job || job.current === chapterId || !job.queue.includes(chapterId)) return;
+  const queue = job.queue.filter((c) => c !== chapterId);
+  patch(id, { queue, total: Math.max(job.done + job.failed, job.total - 1), state: queue.length === 0 && job.state !== 'running' ? 'done' : job.state });
+}
+
 export function clearFinishedJobs() {
   write(jobs.filter((j) => j.state === 'running' || j.state === 'paused'));
 }
