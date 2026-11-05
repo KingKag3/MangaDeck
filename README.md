@@ -86,6 +86,17 @@ npm run dev                                              # http://localhost:5173
 
 `/api` is proxied by Vite, so the browser stays same-origin.
 
+### Install as an app
+
+Mangadeck is a PWA, so Chrome or Edge can install it as a desktop app with its own icon and window:
+
+1. Open http://localhost:8080 (installing needs `localhost` or https; a plain `http://192.168.x.x` address will not offer it).
+2. Click the install icon at the right of the address bar (Chrome: menu, **Cast, save and share**, **Install page as app**; Edge: **Apps**, **Install this site as an app**).
+3. Launch it from the Start menu or desktop like any program.
+
+It is the same web app in a frameless window, so Suwayomi still has to be running (`start-mangadeck.bat`). Prefer no install? Double-click
+`open-mangadeck-app.bat` from this repo for the same frameless window. On a phone, open the address and use **Add to Home screen**.
+
 ### Auth
 
 - **No auth / BASIC_AUTH / SIMPLE_LOGIN**: works through the browser (cookies and basic auth ride along on the same origin).

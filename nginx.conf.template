@@ -31,6 +31,17 @@ server {
         try_files $uri =404;
     }
 
+    # The service worker and manifest must never be served from a stale cache.
+    location = /sw.js {
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+        add_header Cache-Control "no-cache";
+        try_files $uri =404;
+    }
+
     # SPA fallback
     location / {
         add_header Cache-Control "no-cache";

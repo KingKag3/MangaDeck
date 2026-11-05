@@ -18,6 +18,11 @@ Settings live in `localStorage` (`mangadeck.settings`, server override in `manga
 - The Docker image serves a **built** copy. Source edits do nothing until `docker compose up -d --build` is re-run.
 - Check before finishing: `npx tsc --noEmit && npm run build`.
 
+## Installable app (PWA)
+`public/manifest.webmanifest` + `public/sw.js` (registered in `main.tsx`, production only) let Chrome/Edge install Mangadeck (localhost or https only).
+The service worker caches only `index.html` for navigations and never touches `/api`. nginx serves `sw.js` and the manifest with `no-cache`.
+`open-mangadeck-app.bat` opens a frameless `--app=` window without installing. Bump `SHELL` in `sw.js` if the caching ever changes.
+
 ## Layout
 ```
 src/api/client.ts     gql() fetch client, UI_LOGIN JWT + refresh, fetchBlob() for authed images

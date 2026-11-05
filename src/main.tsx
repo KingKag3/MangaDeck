@@ -15,6 +15,11 @@ const queryClient = new QueryClient({
   },
 });
 
+// Lets the browser offer "Install app" (needs https or localhost). Skipped in dev so it never caches Vite.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
