@@ -194,6 +194,10 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
 - **Library shelves** (`LibraryPage`): "What's popular" (`fetchPopular()`, AniList trending, minus library titles, novels and adult titles; items carry `rank`
   and an empty `because`) sits above "Recommended for you" (`fetchRecommendations()`). Both use the same card (`recItem`) and the hover peek.
   Titles with new chapters after "Check for updates" get a solid green border and a `fresh-ribbon` (`.card.fresh .card-art`, no animation).
+  Clicking a recommendation or popular card opens `/find?q=<title>` (`FindPage`, which is `SourceResults` over every English source), not one source.
+  **Sorts**: Title is A to Z; Unread, Last read, Date added and Latest chapter start with most/newest, "Reverse order" flips. Latest chapter uses
+  `newestChapterReleased()` (`lib/latest.ts`): the earliest date of the highest whole chapter number, because `latestUploadedChapter` is the max upload
+  date, which extras (311.5), re-uploads and other groups' copies push to "today". It needs every title's chapter dates (`Q.chapterDates`, big), so that query runs only while this sort is selected.
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
   `timeAgo()` / `dayBucket()` in `format.ts`.
 - **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text.

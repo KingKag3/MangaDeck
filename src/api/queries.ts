@@ -150,6 +150,16 @@ export const Q = {
     return d.mangas.nodes;
   },
 
+  /** Chapter numbers and upload dates of every library title (heavy: only asked for when sorting by latest chapter). */
+  async chapterDates(): Promise<{ id: number; chapters: { nodes: { chapterNumber: number; uploadDate: string }[] } }[]> {
+    const d = await gql(`{
+      mangas(condition: { inLibrary: true }) {
+        nodes { id chapters { nodes { chapterNumber uploadDate } } }
+      }
+    }`);
+    return d.mangas.nodes;
+  },
+
   async manga(id: number): Promise<MangaDetail> {
     const d = await gql(
       `query($id: Int!) {

@@ -40,10 +40,10 @@ export default function RecDialog({ rec, onClose }: { rec: Recommendation; onClo
         <div className="row gap wrap rec-actions">
           <Link
             className="btn primary"
-            to={`/browse/${encodeURIComponent(rec.sourceId)}?q=${encodeURIComponent(rec.title)}`}
+            to={`/find?q=${encodeURIComponent(rec.title)}`}
             onClick={onClose}
           >
-            Find in my source
+            Find in my sources
           </Link>
           <a className="btn ghost" href={rec.siteUrl} target="_blank" rel="noreferrer">
             View on AniList

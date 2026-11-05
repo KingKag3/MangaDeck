@@ -8,6 +8,7 @@ import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } 
 import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
 import { toMs } from '../lib/format';
+import { newestChapterReleased } from '../lib/latest';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
 import { startPacedJob } from '../lib/pacer';
 import { visibleChapters } from '../lib/groups';
@@ -45,7 +46,7 @@ export function latestChapterAt(m: LibraryManga): number {
 }
 
 /** Title runs A to Z; every other sort starts with the most (unread) or newest (dates). "Reverse order" flips it. */
-function sortFn(sort: Sort): (a: LibraryManga, b: LibraryManga) => number {
+function sortFn(sort: Sort, released: Map<number, number>): (a: LibraryManga, b: LibraryManga) => number {
   switch (sort) {
     case 'unread':
       return (a, b) => b.unreadCount - a.unreadCount;
@@ -54,7 +55,7 @@ function sortFn(sort: Sort): (a: LibraryManga, b: LibraryManga) => number {
     case 'added':
       return (a, b) => Number(b.inLibraryAt) - Number(a.inLibraryAt);
     case 'updated':
-      return (a, b) => latestChapterAt(b) - latestChapterAt(a);
+      return (a, b) => (released.get(b.id) || latestChapterAt(b)) - (released.get(a.id) || latestChapterAt(a));
     default:
       return (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true });
   }
@@ -70,6 +71,12 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<View>(loadView);
   const [viewOpen, setViewOpen] = useState(false);
+  // Chapter dates for every title are a big query, so it only runs when sorting by latest chapter.
+  const dates = useQuery({ queryKey: ['chapterDates'], queryFn: Q.chapterDates, enabled: view.sort === 'updated', staleTime: 5 * 60_000 });
+  const released = useMemo(
+    () => new Map((dates.data ?? []).map((m) => [m.id, newestChapterReleased(m.chapters.nodes)] as const)),
+    [dates.data],
+  );
   const [openRec, setOpenRec] = useState<Recommendation | null>(null);
 
   // Hovering a recommendation shows its description after a short pause, so no extra click is needed.
@@ -209,11 +216,11 @@ export default function LibraryPage() {
       if (onlyFresh && freshIds.length > 0 && fresh[String(m.id)] === undefined) return false;
       return true;
     });
-    const cmp = sortFn(view.sort);
+    const cmp = sortFn(view.sort, released);
     list = [...list].sort((a, b) => (view.desc ? -cmp(a, b) : cmp(a, b)));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mangas, cat, search, view, onlyFresh, fresh]);
+  }, [mangas, cat, search, view, onlyFresh, fresh, released]);
 
   // Bring the highlighted titles up to date: download their new chapters, paced so the sources do not ban you.
   async function downloadNew() {
@@ -288,7 +295,7 @@ export default function LibraryPage() {
 
   const recItem = (r: Recommendation) => (
     <div key={r.id} className="shelf-item rec-item" onMouseEnter={(e) => showPeek(r, e.currentTarget)} onMouseLeave={hidePeek}>
-      <Link to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`} className="rec-link">
+      <Link to={`/find?q=${encodeURIComponent(r.title)}`} className="rec-link">
         <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
         <span className="shelf-title">{r.title}</span>
         <span className="muted small">
