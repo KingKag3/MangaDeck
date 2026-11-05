@@ -10,8 +10,10 @@ export interface Recommendation {
   /** Synopsis as plain text (may be empty). */
   description: string;
   year: number | null;
-  /** Library titles that led to this suggestion. */
+  /** Library titles that led to this suggestion (empty for the trending shelf). */
   because: string[];
+  /** Place on AniList's trending list (1 = top), only for the trending shelf. */
+  rank?: number;
   /** Source of the first seed, used to link to a search in that source. */
   sourceId: string;
   siteUrl: string;
@@ -113,4 +115,42 @@ export async function fetchRecommendations(seeds: LibraryManga[], library: Libra
     .sort((a, b) => b.because.length - a.because.length || b.votes - a.votes)
     .slice(0, limit)
     .map(({ votes: _votes, ...r }) => r);
+}
+
+/**
+ * What is popular right now on AniList (trending manga), minus anything already in the library, adult titles and novels.
+ * `sourceId` is the source the shelf's links search in.
+ */
+export async function fetchPopular(library: LibraryManga[], sourceId: string, limit = 24): Promise<Recommendation[]> {
+  const fields = `id title{romaji english} coverImage{large} averageScore genres siteUrl format description(asHtml:false) startDate{year}`;
+  const res = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ query: `{Page(perPage:50){media(type:MANGA,sort:TRENDING_DESC,isAdult:false){${fields}}}}` }),
+  });
+  if (!res.ok) throw new Error(`AniList responded ${res.status}`);
+  const json = await res.json();
+  const media = json?.data?.Page?.media as (NonNullable<AniNode['mediaRecommendation']>)[] | undefined;
+  if (!media) throw new Error(json.errors?.[0]?.message ?? 'No data from AniList');
+  const have = new Set(library.map((m) => normTitle(m.title)));
+  const out: Recommendation[] = [];
+  media.forEach((r, i) => {
+    if (r.format === 'NOVEL') return;
+    const title = r.title.english || r.title.romaji || '';
+    if (!title || have.has(normTitle(title)) || (r.title.romaji && have.has(normTitle(r.title.romaji)))) return;
+    out.push({
+      id: r.id,
+      title,
+      cover: r.coverImage.large ?? '',
+      score: r.averageScore,
+      genres: r.genres.slice(0, 6),
+      description: cleanDescription(r.description),
+      year: r.startDate?.year ?? null,
+      because: [],
+      rank: i + 1,
+      sourceId,
+      siteUrl: r.siteUrl,
+    });
+  });
+  return out.slice(0, limit);
 }

@@ -1892,23 +1892,25 @@ input[type='range'] {
 
 /* ---------- Titles with new chapters (after "Check for updates") ---------- */
 
+/* A solid green border and a ribbon in the top-right corner (no animation). */
 .card.fresh .card-art {
-  box-shadow: 0 0 0 2px var(--ok), 0 0 24px color-mix(in srgb, var(--ok) 50%, transparent);
-  animation: fresh-pulse 2.4s ease-in-out infinite;
+  box-shadow: 0 0 0 3px var(--ok), 0 6px 20px rgba(0, 0, 0, 0.35);
 }
-@keyframes fresh-pulse {
-  50% {
-    box-shadow: 0 0 0 2px var(--ok), 0 0 8px color-mix(in srgb, var(--ok) 25%, transparent);
-  }
+.card.fresh:hover .card-art {
+  box-shadow: 0 0 0 3px var(--ok), 0 12px 30px rgba(0, 0, 0, 0.55);
 }
-@media (prefers-reduced-motion: reduce) {
-  .card.fresh .card-art {
-    animation: none;
-  }
-}
-.badge.fresh {
+.fresh-ribbon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  padding: 3px 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
   background: var(--ok);
   color: #04200f;
+  border-radius: 0 0 0 8px;
+  pointer-events: none;
 }
 .fresh-bar {
   display: flex;

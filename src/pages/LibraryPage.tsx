@@ -10,7 +10,7 @@ import { queryWords, titleHasWords } from '../lib/search';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
 import { startPacedJob } from '../lib/pacer';
 import { visibleChapters } from '../lib/groups';
-import { fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
+import { fetchPopular, fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
 import RecDialog, { RecPeek } from '../components/RecDialog';
 import SourceResults from '../components/SourceResults';
 
@@ -167,6 +167,16 @@ export default function LibraryPage() {
     retry: false,
   });
 
+  // What is trending on AniList, shown above the personal recommendations. Links search in the source of the first title.
+  const popSource = seeds[0]?.sourceId ?? mangas[0]?.sourceId ?? '';
+  const popular = useQuery({
+    queryKey: ['popular', popSource],
+    queryFn: () => fetchPopular(mangas, popSource),
+    enabled: !!popSource,
+    staleTime: 6 * 3600_000,
+    retry: false,
+  });
+
   // Manga with no category live in the "Default" category (id 0).
   const inCategory = (m: LibraryManga, id: number) =>
     id === 0 ? m.categories.nodes.length === 0 : m.categories.nodes.some((c) => c.id === id);
@@ -268,6 +278,31 @@ export default function LibraryPage() {
 
   if (lib.isLoading) return <Spinner label="Loading your library…" />;
   if (lib.error) return <ErrorBox error={lib.error} retry={() => lib.refetch()} />;
+
+  const recItem = (r: Recommendation) => (
+    <div key={r.id} className="shelf-item rec-item" onMouseEnter={(e) => showPeek(r, e.currentTarget)} onMouseLeave={hidePeek}>
+      <Link to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`} className="rec-link">
+        <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
+        <span className="shelf-title">{r.title}</span>
+        <span className="muted small">
+          {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
+          {r.rank ? `Trending #${r.rank}` : r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
+        </span>
+      </Link>
+      <button
+        type="button"
+        className="rec-info"
+        aria-label={`Details for ${r.title}`}
+        title="Details"
+        onClick={() => {
+          hidePeek();
+          setOpenRec(r);
+        }}
+      >
+        i
+      </button>
+    </div>
+  );
 
   return (
     <div className="page">
@@ -426,42 +461,21 @@ export default function LibraryPage() {
         </section>
       )}
 
+      {cat === 'all' && !search && !selecting && popular.data && popular.data.length > 0 && (
+        <section className="shelf recs">
+          <h2>
+            What's popular <span className="muted small">· trending on AniList right now</span>
+          </h2>
+          <Shelf>{popular.data.map((r) => recItem(r))}</Shelf>
+        </section>
+      )}
+
       {cat === 'all' && !search && !selecting && recs.data && recs.data.length > 0 && (
         <section className="shelf recs">
           <h2>
             Recommended for you <span className="muted small">· from AniList, based on what you read</span>
           </h2>
-          <Shelf>
-            {recs.data.map((r) => (
-              <div
-                key={r.id}
-                className="shelf-item rec-item"
-                onMouseEnter={(e) => showPeek(r, e.currentTarget)}
-                onMouseLeave={hidePeek}
-              >
-                <Link to={`/browse/${encodeURIComponent(r.sourceId)}?q=${encodeURIComponent(r.title)}`} className="rec-link">
-                  <div className="cover">{r.cover && <img src={r.cover} alt={r.title} loading="lazy" referrerPolicy="no-referrer" />}</div>
-                  <span className="shelf-title">{r.title}</span>
-                  <span className="muted small">
-                    {r.score ? `★ ${(r.score / 10).toFixed(1)} · ` : ''}
-                    {r.because.length > 1 ? `${r.because.length} matches` : `Like ${r.because[0]}`}
-                  </span>
-                </Link>
-                <button
-                  type="button"
-                  className="rec-info"
-                  aria-label={`Details for ${r.title}`}
-                  title="Details"
-                  onClick={() => {
-                    hidePeek();
-                    setOpenRec(r);
-                  }}
-                >
-                  i
-                </button>
-              </div>
-            ))}
-          </Shelf>
+          <Shelf>{recs.data.map((r) => recItem(r))}</Shelf>
         </section>
       )}
 

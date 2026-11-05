@@ -34,7 +34,7 @@ export default function RecDialog({ rec, onClose }: { rec: Recommendation; onClo
               </div>
             )}
             <p className="rec-desc">{rec.description || 'No description available.'}</p>
-            <div className="muted small">Because you read {rec.because.join(', ')}</div>
+            {rec.because.length > 0 && <div className="muted small">Because you read {rec.because.join(', ')}</div>}
           </div>
         </div>
         <div className="row gap wrap rec-actions">
@@ -66,7 +66,7 @@ export function RecPeek({ rec, anchor }: { rec: Recommendation; anchor: DOMRect 
       <b>{rec.title}</b>
       <div className="muted small">{[rec.score ? `★ ${(rec.score / 10).toFixed(1)}` : null, rec.year, rec.genres.slice(0, 3).join(', ')].filter(Boolean).join(' · ')}</div>
       <p>{rec.description || 'No description available.'}</p>
-      <div className="muted small">Because you read {rec.because.slice(0, 3).join(', ')}</div>
+      {rec.because.length > 0 && <div className="muted small">Because you read {rec.because.slice(0, 3).join(', ')}</div>}
     </div>
   );
 }

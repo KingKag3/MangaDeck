@@ -43,8 +43,8 @@ export function MangaCard({
     >
       <div className="card-art">
         <Cover path={thumbnailUrl} alt={title} />
+        {!!fresh && <span className="fresh-ribbon">+{fresh} new</span>}
         <div className="badges">
-          {!!fresh && <span className="badge fresh">+{fresh} new</span>}
           {!!unread && unread > 0 && <span className="badge unread">{unread}</span>}
           {!!downloaded && downloaded > 0 && <span className="badge dl">{downloaded}</span>}
           {inLibrary && <span className="badge lib">In library</span>}

@@ -176,6 +176,9 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   would start a second Suwayomi on 4567). Use `$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck`.
   Suwayomi keeps downloads as `.cbz` per chapter under its downloads folder; deleting through the API
   (`deleteDownloadedChapters`) may leave the files, so check the folder too. Library cover badges: orange = unread, blue = downloaded.
+- **Library shelves** (`LibraryPage`): "What's popular" (`fetchPopular()`, AniList trending, minus library titles, novels and adult titles; items carry `rank`
+  and an empty `because`) sits above "Recommended for you" (`fetchRecommendations()`). Both use the same card (`recItem`) and the hover peek.
+  Titles with new chapters after "Check for updates" get a solid green border and a `fresh-ribbon` (`.card.fresh .card-art`, no animation).
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
   `timeAgo()` / `dayBucket()` in `format.ts`.
 - **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text.
