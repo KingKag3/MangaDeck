@@ -80,13 +80,13 @@ export default function ExportJobs() {
       <div className="row gap paced-head">
         <h2>.cbz exports</h2>
         <span className="muted small">download every chapter, then pack them into one file</span>
-        {visible.some((j) => j.state === 'running') && <span className="muted small">Keep Mangadeck open in a browser tab: exports pause when it is closed.</span>}
         {finished && (
           <button className="link-btn paced-clear" onClick={clearFinishedExports}>
             Clear finished
           </button>
         )}
       </div>
+      {visible.some((j) => j.state === 'running') && <p className="muted small paced-note">Keep Mangadeck open in a browser tab: exports pause when it is closed.</p>}
       <ul className="list">
         {visible.map((j) => {
           const total = j.items.length || 1;
