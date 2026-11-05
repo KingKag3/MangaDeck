@@ -44,16 +44,17 @@ export function latestChapterAt(m: LibraryManga): number {
   return toMs(m.latestUploadedChapter?.uploadDate) || toMs(m.latestFetchedChapter?.fetchedAt);
 }
 
+/** Title runs A to Z; every other sort starts with the most (unread) or newest (dates). "Reverse order" flips it. */
 function sortFn(sort: Sort): (a: LibraryManga, b: LibraryManga) => number {
   switch (sort) {
     case 'unread':
-      return (a, b) => a.unreadCount - b.unreadCount;
+      return (a, b) => b.unreadCount - a.unreadCount;
     case 'lastRead':
-      return (a, b) => Number(a.lastReadChapter?.lastReadAt ?? 0) - Number(b.lastReadChapter?.lastReadAt ?? 0);
+      return (a, b) => Number(b.lastReadChapter?.lastReadAt ?? 0) - Number(a.lastReadChapter?.lastReadAt ?? 0);
     case 'added':
-      return (a, b) => Number(a.inLibraryAt) - Number(b.inLibraryAt);
+      return (a, b) => Number(b.inLibraryAt) - Number(a.inLibraryAt);
     case 'updated':
-      return (a, b) => latestChapterAt(a) - latestChapterAt(b);
+      return (a, b) => latestChapterAt(b) - latestChapterAt(a);
     default:
       return (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true });
   }
