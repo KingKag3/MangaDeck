@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { canSaveToDisk, pickSaveFile, safeFileName, saveBlob } from '../lib/export';
+import { canSaveToDisk, fileSizeIn, pickSaveFile, safeFileName, saveBlob, type FolderHandle, type SaveHandle } from '../lib/export';
 import { checkParts, loadPart, mergeParts, sortParts, suggestName, type MergePart } from '../lib/merge';
 import { errorToast, toast } from './ui';
 
@@ -9,7 +9,22 @@ const mb = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` :
  * Merge several .cbz files (usually volumes) into one. The files are only read; the result is a new file.
  * Pages are copied without recompressing, so it is quick even for several GB.
  */
-export default function MergeDialog({ series: seriesHint, onClose }: { series?: string; onClose: () => void }) {
+export default function MergeDialog({
+  series: seriesHint,
+  initialFiles,
+  folder,
+  onMerged,
+  onClose,
+}: {
+  series?: string;
+  /** Files to start with (e.g. the ones chosen on the manga page). */
+  initialFiles?: File[];
+  /** Save the result into this folder instead of asking where. */
+  folder?: FolderHandle;
+  /** Called after a successful merge with the source file names and the new file's name. */
+  onMerged?: (sources: string[], into: string) => void;
+  onClose: () => void;
+}) {
   const [parts, setParts] = useState<MergePart[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,11 +50,19 @@ export default function MergeDialog({ series: seriesHint, onClose }: { series?: 
     if (!nameEdited && parts.length) setFileName(suggestName(seriesName, parts));
   }, [parts, seriesName, nameEdited]);
 
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !initialFiles?.length) return;
+    started.current = true;
+    void add(initialFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const warnings = useMemo(() => checkParts(parts), [parts]);
   const totalSize = parts.reduce((n, p) => n + p.file.size, 0);
   const totalPages = parts.reduce((n, p) => n + p.pages.length, 0);
 
-  async function add(files: FileList | null) {
+  async function add(files: FileList | File[] | null) {
     if (!files?.length) return;
     setLoading(true);
     const fresh: MergePart[] = [];
@@ -69,16 +92,26 @@ export default function MergeDialog({ series: seriesHint, onClose }: { series?: 
 
   async function run() {
     if (parts.length < 2 || working) return;
-    const name = (safeFileName(fileName.replace(/\.cbz$/i, '')) || 'Merged') + '.cbz';
+    let name = (safeFileName(fileName.replace(/\.cbz$/i, '')) || 'Merged') + '.cbz';
+    if (folder) {
+      // Never overwrite a file that is already in the folder.
+      const base = name.replace(/\.cbz$/i, '');
+      for (let n = 2; (await fileSizeIn(folder, name)) > 0; n++) name = `${base} (${n}).cbz`;
+    }
     if (
+      !folder &&
       !canSaveToDisk &&
       totalSize > 1.5 * 1024 ** 3 &&
       !confirm(`This browser can't save straight to disk, so the whole ${mb(totalSize)} file is built in memory first. That can run out of memory. Continue?`)
     )
       return;
     // The save dialog has to open straight from the click.
-    let handle: Awaited<ReturnType<typeof pickSaveFile>> = null;
-    if (canSaveToDisk) {
+    let handle: SaveHandle | null = null;
+    if (folder) {
+      const dir = folder;
+      const fname = name;
+      handle = { name: fname, createWritable: async () => (await (await dir.getFileHandle(fname, { create: true })).createWritable()) };
+    } else if (canSaveToDisk) {
       try {
         handle = await pickSaveFile(name);
       } catch (e) {
@@ -101,7 +134,8 @@ export default function MergeDialog({ series: seriesHint, onClose }: { series?: 
       });
       if (writable) await writable.close();
       else if (blob) saveBlob(blob, name);
-      setResult(`Saved ${handle?.name ?? name}: ${parts.length} files, ${pages} pages. The original files were not changed.`);
+      setResult(`Saved ${handle?.name ?? name}${folder ? ` in the folder “${folder.name}”` : ''}: ${parts.length} files, ${pages} pages. The original files were not changed.`);
+      onMerged?.(parts.map((p) => p.file.name), name);
       toast('Merged into one .cbz');
     } catch (e) {
       if (writable) await writable.abort().catch(() => undefined);

@@ -11,6 +11,8 @@ import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges,
 import VolumeDialog from '../components/VolumeDialog';
 import ShareDialog from '../components/ShareDialog';
 import MergeDialog from '../components/MergeDialog';
+import LocalFiles from '../components/LocalFiles';
+import { saveFolder } from '../lib/folderStore';
 import LinkedSources from '../components/LinkedSources';
 import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
@@ -130,6 +132,8 @@ export default function MangaPage() {
         return errorToast(e);
       }
       if (!dir) return;
+      void saveFolder(id, dir); // remembered, so the "Your .cbz files" panel can list and merge them
+      setFolderKey((k) => k + 1);
     }
     let started = 0;
     let skipped = 0;
@@ -199,6 +203,7 @@ export default function MangaPage() {
   const [editVolumes, setEditVolumes] = useState(false);
   const [shareVolumes, setShareVolumes] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [folderKey, setFolderKey] = useState(0);
   const [asc, setAsc] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [downloadedOnly, setDownloadedOnly] = useState(false);
@@ -498,6 +503,8 @@ export default function MangaPage() {
             chapters={everything}
             categoryIds={m.categories.nodes.map((c) => c.id)}
           />
+
+          <LocalFiles key={folderKey} id={id} title={m.title} knownVolumes={volumeInfo?.ranges.map((r) => r.volume) ?? []} />
 
           <details className="reader-override">
             <summary>

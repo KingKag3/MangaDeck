@@ -150,6 +150,13 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   has them, PageCount, Notes listing the sources). Sources are only read. `checkParts()` warns (never blocks) about different series,
   duplicate volumes, gaps and files without a volume. Output goes to a save-picker file (Chrome/Edge) or an in-memory blob (warns above
   1.5 GB). Not logged in the history (no manga id). Runs inside the dialog, not as a saved job.
+  **Your .cbz files panel** (`LocalFiles`, manga page, Chrome/Edge only): the folder picked for a series is kept per manga in IndexedDB
+  (`folderStore.ts`: `saveFolder/loadFolder`, handles survive restarts but need one click, `folderAccess(dir, true)`, to be allowed again).
+  "Each volume as .cbz" saves its folder automatically; the panel also has Choose/Change/Forget. It lists the folder's `.cbz` files whose name
+  matches the title (`nameMatchesSeries`), reads volumes from names (`volumesInName`: "Vol. 03", "Vols. 1-5"), shows which known volumes are
+  missing, and merges the ticked files into the SAME folder (`MergeDialog` with `folder` + `initialFiles`; never overwrites, adds " (2)").
+  Merged sources are remembered in localStorage `mangadeck.merged` and shown as "merged into X". Only file names are read for the list;
+  the zips are opened when merging.
 - **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file
   would start a second Suwayomi on 4567). Use `$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck`.
   Suwayomi keeps downloads as `.cbz` per chapter under its downloads folder; deleting through the API

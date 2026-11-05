@@ -99,3 +99,20 @@ describe('merging', () => {
     expect(suggestName('S', [{ volume: null }])).toBe('S - Merged.cbz');
   });
 });
+
+import { nameMatchesSeries, volumesInName } from './merge';
+
+describe('file names', () => {
+  it('reads the volumes a name covers', () => {
+    expect(volumesInName('Series - Vol. 03.cbz')).toEqual([3]);
+    expect(volumesInName('Series - Vols. 1-3.cbz')).toEqual([1, 2, 3]);
+    expect(volumesInName('Series - Vols. 1, 3, 4.cbz')).toEqual([1, 3, 4]);
+    expect(volumesInName('Series - Vol. 03 - Title.cbz')).toEqual([3]);
+    expect(volumesInName('Series.cbz')).toEqual([]);
+  });
+  it('matches a series name loosely', () => {
+    expect(nameMatchesSeries('Dandadan - Vol. 01.cbz', 'Dandadan')).toBe(true);
+    expect(nameMatchesSeries('Kaiju No. 8 - Vol. 1.cbz', 'Kaiju No 8')).toBe(true);
+    expect(nameMatchesSeries('Other - Vol. 1.cbz', 'Dandadan')).toBe(false);
+  });
+});

@@ -59,6 +59,29 @@ export function volumeFromName(name: string): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
+/** Volumes a file name covers: "Vol. 03" gives [3], "Vols. 1-5" gives 1 to 5, "Vols. 1, 3, 4" gives those three. */
+export function volumesInName(name: string): number[] {
+  const m = name.match(/\bvol(?:ume)?s?\.?\s*(\d[\d\s,\-–]*)/i);
+  if (!m) {
+    const v = volumeFromName(name);
+    return v === undefined ? [] : [v];
+  }
+  const out: number[] = [];
+  for (const t of m[1].matchAll(/(\d+)(?:\s*[-–]\s*(\d+))?/g)) {
+    const a = Number(t[1]);
+    const b = t[2] ? Number(t[2]) : a;
+    for (let v = a; v <= Math.min(b, a + 200); v++) out.push(v);
+  }
+  return [...new Set(out)];
+}
+
+/** Does this file name look like it belongs to the series? Compares letters and digits only. */
+export function nameMatchesSeries(fileName: string, series: string): boolean {
+  const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const want = norm(series);
+  return want === '' || norm(fileName).includes(want);
+}
+
 export interface MergePart {
   file: File;
   /** Image pages in reading order. */

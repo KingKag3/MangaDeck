@@ -216,6 +216,10 @@ export interface FolderHandle {
   name: string;
   getFileHandle(name: string, o?: { create?: boolean }): Promise<FileHandleLike>;
   removeEntry(name: string): Promise<void>;
+  /** Everything in the folder (Chrome / Edge). */
+  values?(): AsyncIterable<{ kind: 'file' | 'directory'; name: string; getFile?(): Promise<File> }>;
+  queryPermission?(o: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
+  requestPermission?(o: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
 }
 
 export const canPickFolder = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
