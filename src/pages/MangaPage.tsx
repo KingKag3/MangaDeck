@@ -17,6 +17,7 @@ import { tagColor } from '../lib/tagColor';
 import { chooseSync, pushVolumeMeta, saveVolumes, takeRule, volumeInfoFromMeta } from '../lib/volumeStore';
 import { estimateWaitMs, formatDuration, paceConfig, sleep, startPacedJob, waitMs } from '../lib/pacer';
 import { logDownload } from '../lib/history';
+import { startExportJob } from '../lib/exportJobs';
 import { buildCbz, canPickFolder, canSaveToDisk, fileSizeIn, pickFolder, pickSaveFile, queueAndWait, safeFileName, saveBlob, type PackMeta } from '../lib/export';
 import {
   effectivePrefs,
@@ -97,58 +98,22 @@ export default function MangaPage() {
       }
       if (!handle) return;
     }
-    const writable = handle ? await handle.createWritable() : null;
-    const abort = new AbortController();
-    packAbort.current = abort;
-    try {
-      // First let Suwayomi download the chapters, so they show in Downloads and packing reads the local copies.
-      const missing = items.filter((i) => !i.chapter.isDownloaded).map((i) => i.chapter.id);
-      if (missing.length) {
-        setPacking({ volume, done: 0, total: missing.length, phase: 'downloading' });
-        const failed = await queueAndWait(missing, (done, total) => setPacking({ volume, done, total, phase: 'downloading' }), abort.signal);
-        refreshAll();
-        if (failed) toast(`${failed} chapter${failed === 1 ? '' : 's'} failed to download; fetching from the source instead`, 'error');
-      }
-      setPacking({ volume, done: 0, total: items.length, phase: 'packing' });
-      const { blob, fileName, pages } = await buildCbz({
-        series,
-        items,
-        volume: volume === 0 ? undefined : volume,
-        meta: packMeta(volume, ranges),
-        sink: writable ? (part) => writable.write(part) : undefined,
-        onProgress: (p) => setPacking({ volume, done: p.chapter, total: p.chapters, phase: 'packing' }),
-        signal: abort.signal,
-      });
-      if (writable) await writable.close();
-      else if (blob) saveBlob(blob, fileName);
-      toast(`Saved ${writable ? suggested : fileName} (${items.length} chapters, ${pages} pages)`);
-      logDownload({
-        kind: volume === 0 ? 'series' : 'volume',
-        mangaId: id,
-        title: series,
-        label: volume === 0 ? 'Complete series .cbz' : `Vol. ${String(volume).padStart(2, '0')} .cbz`,
-        ok: true,
-        note: `${items.length} chapters, ${pages} pages`,
-        where: handle ? `${handle.name} (where you chose to save it)` : `${fileName} in your browser's Downloads folder`,
-      });
-    } catch (e) {
-      if (writable) await writable.abort().catch(() => undefined);
-      if (abort.signal.aborted) toast('Cancelled');
-      else {
-        errorToast(e);
-        logDownload({
-          kind: volume === 0 ? 'series' : 'volume',
-          mangaId: id,
-          title: series,
-          label: volume === 0 ? 'Complete series .cbz' : `Vol. ${String(volume).padStart(2, '0')} .cbz`,
-          ok: false,
-          note: e instanceof Error ? e.message : 'failed',
-        });
-      }
-    } finally {
-      packAbort.current = null;
-      setPacking(null);
-    }
+    // The export runs as a saved job (see lib/exportJobs.ts): it shows on the Downloads page and can be resumed.
+    const { existing } = startExportJob({
+      mangaId: id,
+      title: series,
+      volume,
+      fileName: suggested,
+      items: items.map((i) => ({ id: i.chapter.id, chapterNumber: i.chapter.chapterNumber, volume: i.volume, label: chapterLabel(i.chapter) })),
+      todo: items.filter((i) => !i.chapter.isDownloaded).map((i) => i.chapter.id),
+      meta: packMeta(volume, ranges),
+      handle,
+    });
+    toast(
+      existing
+        ? 'This is already being exported. Follow it on the Downloads page.'
+        : `Export started: ${items.length} chapters into one .cbz. Follow it on the Downloads page; if it fails you can resume it there.`,
+    );
   }
 
   /** Every volume as its own .cbz, into one folder you pick. Files already in the folder are skipped, so it can resume. */

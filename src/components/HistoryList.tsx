@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { dayBucket, timeAgo } from '../lib/format';
-import { clearHistory, useHistory } from '../lib/history';
+import { clearExports, clearHistory, useHistory } from '../lib/history';
 
 const SHOWN = 30;
 
@@ -27,9 +27,16 @@ export default function HistoryList() {
       <div className="row gap paced-head">
         <h2>History</h2>
         <span className="muted small">{entries.length} finished, kept in this browser</span>
-        <button className="link-btn paced-clear" onClick={() => confirm('Clear the download history? Downloaded files stay as they are.') && clearHistory()}>
-          Clear history
-        </button>
+        <span className="paced-clear row gap">
+          {entries.some((e) => e.kind !== 'chapter') && (
+            <button className="link-btn" onClick={() => confirm('Remove the .cbz exports from the history? Saved files and chapter entries stay as they are.') && clearExports()}>
+              Clear exports
+            </button>
+          )}
+          <button className="link-btn" onClick={() => confirm('Clear the download history? Downloaded files stay as they are.') && clearHistory()}>
+            Clear history
+          </button>
+        </span>
       </div>
       <ul className="list">
         {shown.map((h) => {
@@ -52,6 +59,15 @@ export default function HistoryList() {
                     {h.note ? ` · ${h.note}` : ''}
                   </div>
                   {h.where && <div className="muted small history-where">Saved: {h.where}</div>}
+                  {!h.ok && h.kind !== 'chapter' && (
+                    <div className="small history-where">
+                      Nothing was saved.{' '}
+                      <Link to={`/manga/${h.mangaId}`} className="link-btn">
+                        Open the series and press the .cbz button again
+                      </Link>
+                      ; chapters the server already downloaded are reused, so it picks up where it stopped.
+                    </div>
+                  )}
                 </div>
                 <span className="muted small">{timeAgo(h.at)}</span>
               </div>

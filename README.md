@@ -40,6 +40,16 @@ Already have a Suwayomi running? Delete the `suwayomi` service from `docker-comp
 SUWAYOMI_URL=http://192.168.1.50:4567 docker compose up -d --build
 ```
 
+Already running Suwayomi in its own container (as on the author's machine, port 4567)? Do not run plain
+`docker compose up`: it would start a second Suwayomi on the same port. Build only Mangadeck and point it at the
+running one (on Docker Desktop, `host.docker.internal` reaches the host):
+
+```powershell
+$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck
+```
+
+The image serves a built copy, so source edits show only after this is re-run (then hard-refresh the browser).
+
 ### Dev
 
 ```bash
@@ -71,7 +81,7 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 | Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), **official volumes** (looked up from Wikipedia chapter lists, read from "Vol. N" in chapter names, imported from a Wikipedia or Fandom wiki link, or typed in by hand: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
 | Reader | Paged (LTR/RTL) and webtoon modes, 4 fit modes, tap zones, swipe, keyboard, preloading, progress slider, resume position, auto mark-read, auto-download upcoming chapters, fullscreen |
 | Updates | New chapters grouped by day, reading history, one-tap download |
-| Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections, `.cbz` exports) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel) |
+| Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel). **Show queue** on a job lists every chapter still waiting; a chapter that failed 3 times is marked and Resume retries it. **.cbz exports** ("⬇ All as .cbz" / a volume's ".cbz") are saved jobs: they download every chapter, then pack them into one file, show on this page with progress, and can be paused, resumed, skipped past a failing chapter, or cancelled. History at the bottom, with "Clear exports" / "Clear history" |
 | Browse | English sources only (a setting shows other languages), popular/latest/search with load-more, search results filtered to titles that contain your words, extension install/update/uninstall, refresh repository |
 
 Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` chapters, `M` toggle menu, `F` fullscreen, `Esc` back.
@@ -92,6 +102,8 @@ scripts/                `npm run volumes:export` copies the volume lists you typ
 src/lib/export.ts     build a .cbz (pages + ComicInfo.xml), save to disk or download
 src/lib/zip.ts        tiny dependency-free zip writer (stored, streams to a file)
 src/lib/pacer.ts      paced bulk downloads: timing, one-chapter-at-a-time runner, saved jobs
+src/lib/exportJobs.ts .cbz export jobs: download every chapter (paced), then pack one file; saved, resumable, shown on Downloads
+src/lib/history.ts    log of finished downloads and exports (per browser)
 src/lib/recommend.ts  AniList recommendations from your recent reads
 src/lib/search.ts     word matching for search (any order, ignores case and accents)
 src/lib/format.ts     dates (Suwayomi mixes seconds and milliseconds), description parsing
@@ -114,6 +126,14 @@ Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and
   Nothing else leaves your network, and nothing breaks if they are unreachable.
 - Paced downloads wait in the browser, so keep a Mangadeck tab open while a long job runs (a hidden tab slows its
   timers, which only makes the waits longer). The server has no download delay setting of its own.
+- **.cbz exports and resuming**: an export job (`mangadeck.exportjobs` in localStorage) first downloads the missing chapters
+  through Suwayomi, then packs all chapters into one zip. Download failures retry with backoff and pause after 3 in a
+  row (Resume retries, Skip leaves that chapter to be read from the source while packing). Page and image fetches while
+  packing retry 4 times. A zip is written as one stream, so a failed or paused pack restarts the file, but downloaded
+  chapters stay on the server, so that is quick. The browser only gives out a save location from a click, so it is kept
+  in memory: after a page reload a job waiting to pack shows **Choose file**. Jobs run from `Layout` under a Web Lock
+  (one tab). Known limit: the zip writer has no ZIP64, so a single file over 4 GB or 65k pages fails; very long series
+  may need per-volume files. Not yet tested end to end against a real series (the download and pause steps were).
 - `.cbz` is a plain zip, not a RAR, so it opens in any comic reader; real `.cbr` needs WinRAR's tool.
 - The stock WebUI keeps running inside Suwayomi; Mangadeck ignores it. Mangadeck is just another client of the
   same API, so you can use both side by side.

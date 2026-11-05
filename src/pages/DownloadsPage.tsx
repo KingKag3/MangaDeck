@@ -5,6 +5,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Spinner, errorToast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import PacedJobs from '../components/PacedJobs';
+import ExportJobs from '../components/ExportJobs';
 import HistoryList from '../components/HistoryList';
 
 export default function DownloadsPage() {
@@ -47,6 +48,7 @@ export default function DownloadsPage() {
         </button>
       </PageHeader>
 
+      <ExportJobs />
       <PacedJobs />
 
       {queue.length === 0 ? (

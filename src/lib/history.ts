@@ -90,6 +90,12 @@ export function logDownload(entry: Omit<HistoryEntry, 'at'>) {
   write(appendEntry(entries, { ...entry, at: Date.now() }));
 }
 
+/** Forget the .cbz exports (volume and whole-series), keeping the chapter downloads. */
+export function clearExports() {
+  entries = read();
+  write(entries.filter((e) => e.kind === 'chapter'));
+}
+
 export function clearHistory() {
   write([]);
 }

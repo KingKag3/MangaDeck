@@ -28,6 +28,21 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
   return out;
 }
 
+/** Try `fn` up to `tries` times, waiting 2 s, 6 s, ... between attempts. Gateway timeouts and resets from a source are usually brief. */
+export async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal, tries = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (signal?.aborted || attempt >= tries) throw e;
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, 2000 * (attempt * 2 - 1));
+        signal?.addEventListener('abort', () => (clearTimeout(t), reject(signal.reason)), { once: true });
+      });
+    }
+  }
+}
+
 export function safeFileName(s: string): string {
   return s.replace(/[\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -74,8 +89,8 @@ export async function buildCbz(o: PackOptions): Promise<{ blob: Blob | null; fil
 
   for (const [ci, { chapter: c, volume }] of o.items.entries()) {
     o.signal?.throwIfAborted();
-    const urls = await M.fetchPages(c.id);
-    const blobs = await pool(urls, 4, (u) => fetchBlob(resolveUrl(u), o.signal));
+    const urls = await withRetry(() => M.fetchPages(c.id), o.signal);
+    const blobs = await pool(urls, 4, (u) => withRetry(() => fetchBlob(resolveUrl(u), o.signal), o.signal));
     const vol = volume === null ? 'vz' : `v${String(volume).padStart(2, '0')}`;
     const tag = c.chapterNumber >= 0 ? String(Math.floor(c.chapterNumber)).padStart(4, '0') : `x${String(ci + 1).padStart(3, '0')}`;
     const frac = c.chapterNumber >= 0 && !Number.isInteger(c.chapterNumber) ? `_${String(c.chapterNumber).split('.')[1]}` : '';
@@ -141,7 +156,7 @@ export function saveBlob(blob: Blob, fileName: string) {
 
 /* ---------- Saving straight to disk (Chrome / Edge) ---------- */
 
-interface SaveHandle {
+export interface SaveHandle {
   /** File name the user chose. Browsers never reveal the full path. */
   name: string;
   createWritable(): Promise<{ write(d: Uint8Array): Promise<void>; close(): Promise<void>; abort(): Promise<void> }>;

@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Q } from '../api/queries';
 import { startPacer } from '../lib/pacer';
+import { startExporter } from '../lib/exportJobs';
 import { initRemoteRules } from '../lib/remoteRules';
 import { useDownloadWatch } from '../lib/downloadWatch';
 
@@ -17,6 +18,8 @@ const NAV = [
 export default function Layout() {
   // Paced bulk downloads keep running while any page of the app is open.
   useEffect(() => startPacer(), []);
+  // So do .cbz exports (download every chapter, then pack them into one file).
+  useEffect(() => startExporter(), []);
   useEffect(() => {
     void initRemoteRules();
   }, []);

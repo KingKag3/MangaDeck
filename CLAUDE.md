@@ -127,7 +127,22 @@ src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Source
   series, each-volume; failures too). Shown by `HistoryList` at the bottom of the Downloads page.
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
-  `.cbz` exports use `queueAndWait()` with the same pacing. Suwayomi itself has no delay setting.
+  Suwayomi itself has no delay setting. `PacedJobs` has a "Show queue" toggle listing the chapters still waiting (names from
+  `Q.chapters`); a paused-after-failure job marks `queue[0]` as failed and Resume retries it; `removeFromJob()` drops one.
+- **`.cbz` export jobs** (`src/lib/exportJobs.ts`, UI `components/ExportJobs.tsx` on the Downloads page): `MangaPage.pack(volume)`
+  (volume 0 = whole series) only asks for the save location (file picker must come from the click), then calls `startExportJob()`.
+  The runner (`startExporter()` from `Layout`, Web Lock `mangadeck-exporter`) has two phases: `downloading` (`downloadOne()` per
+  missing chapter with `waitMs` pacing, backoff, pause after 3 failures, `skipExportChapter`) then `packing` (`buildCbz` streamed
+  to the saved file handle). Jobs persist in `mangadeck.exportjobs`. File handles live in memory only, so after a reload a
+  job at the packing phase pauses with `needsFile` and the card shows "Choose file" (`chooseExportFile`). A pack failure
+  pauses the job (it does NOT log a history failure; the job is the record); success logs one history entry.
+  `buildCbz` retries `fetchPages` and every image fetch 4 times (`withRetry` in `export.ts`). `packEachVolume` (folder of
+  volumes) is still the old inline flow in `MangaPage` using `queueAndWait()`. Not yet tested end to end on a real series;
+  known gaps: no ZIP64 (4 GB / 65k files), a stream cannot resume mid-file.
+- **Running Mangadeck next to an existing Suwayomi container** (Kamjohn's setup): never plain `docker compose up` (the compose file
+  would start a second Suwayomi on 4567). Use `$env:SUWAYOMI_URL='http://host.docker.internal:4567'; docker compose up -d --build --no-deps mangadeck`.
+  Suwayomi keeps downloads as `.cbz` per chapter under its downloads folder; deleting through the API
+  (`deleteDownloadedChapters`) may leave the files, so check the folder too. Library cover badges: orange = unread, blue = downloaded.
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
   `timeAgo()` / `dayBucket()` in `format.ts`.
 - **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text.
