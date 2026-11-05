@@ -88,6 +88,8 @@ Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` c
 
 ## Layout
 
+A diagram of how the parts fit together (overview, volumes and shared rules, downloads / exports / merge) is in [`docs/architecture.drawio`](docs/architecture.drawio). Open it with [diagrams.net](https://app.diagrams.net) or the draw.io desktop app or VS Code extension.
+
 ```
 src/api/client.ts     GraphQL client, auth, token refresh
 src/api/queries.ts    every query/mutation + types (single file, easy to extend)

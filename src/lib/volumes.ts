@@ -498,7 +498,10 @@ export function parseVolumeText(text: string): VolumeRange[] {
     const parts = text.split(/\b(?:volume|vol\.?)\s*(\d+)\b/i);
     for (let i = 1; i < parts.length; i += 2) {
       const volume = parseInt(parts[i], 10);
-      const body = parts[i + 1] ?? '';
+      // Stop at a heading for something that is not a volume (omakes, specials, extras): their chapter mentions are not this volume's.
+      const raw = parts[i + 1] ?? '';
+      const stop = /\n={2,}\s*[^=\n]*\b(?:omakes?|specials?|extras?|bonus|side stor(?:y|ies)|spin-?offs?|one-?shots?|gallery|trivia|see also)\b[^=\n]*={2,}/i.exec(raw);
+      const body = stop ? raw.slice(0, stop.index) : raw;
       const found: number[] = [];
       for (const m of body.matchAll(new RegExp(String.raw`\b(?:chapters?|ch\.?)\s*${num}(?:\s*(?:[–—-]|to)\s*${num})?`, 'gi'))) {
         found.push(parseFloat(m[1]));

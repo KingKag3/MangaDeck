@@ -36,6 +36,9 @@ src/components/       ui.tsx (toasts, Spinner, ErrorBox, Empty, PageHeader, Tabs
 src/pages/            Library, Manga, Reader, Updates, Downloads, Browse (Sources + Extensions), Source, Settings
 ```
 
+Architecture diagram: `docs/architecture.drawio` (3 pages: overview, volumes and rules, downloads / exports / merge). When a feature changes how the
+parts connect, update it; it is plain mxfile XML and can be edited in diagrams.net.
+
 ## Things to know before changing code
 - **Scanlation groups** (latest feature): `Chapter.scanlator` is the group. `MangaPage` shows a group bar when a manga has
   more than one group. The choice is saved per manga in `settings.groups[mangaId] = { group, fill }`.

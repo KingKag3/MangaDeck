@@ -515,3 +515,26 @@ describe('keepExtras and sameRanges', () => {
     expect(sameRanges(undefined, [])).toBe(false);
   });
 });
+
+describe('parseVolumeText on a one-page chapter list (Fandom "Chapters")', () => {
+  it('does not let omakes and specials after the last volume stretch it', () => {
+    const page = [
+      '==Chapter list==',
+      '===Volume 15===',
+      '*Chapter 98: [[Communicating]]',
+      '*Chapter 99: [[Mob]]',
+      '{{clr}}',
+      '===Volume 16===',
+      '*Chapter 100: [[Unnamed]]',
+      '*Chapter 101: [[101]]',
+      '{{clr}}',
+      '===Omakes and Specials===',
+      '====Named====',
+      '*[[Fake Pot]] (Chapter 18 extra)',
+    ].join('\n');
+    expect(parseVolumeText(page)).toEqual([
+      { volume: 15, first: 98, last: 99 },
+      { volume: 16, first: 100, last: 101 },
+    ]);
+  });
+});
