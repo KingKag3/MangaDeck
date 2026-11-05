@@ -115,8 +115,8 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 | Area | Features |
 | --- | --- |
 | Library | Category tabs with counts, search (matches words anywhere in a title), sort (title, unread, last read, date added, latest chapter) with direction, unread/downloaded filters, cover size slider, unread/download badges, "Continue reading" shelf, **"What's popular"** shelf (AniList trending), "Recommended for you" shelf (up to 30 titles from AniList based on what you read recently; hover for the synopsis, "i" for details, click to search for it in your source), **+ Sources** to also search the typed title in your English sources, multi-select (add to category, remove), one-click "Check for updates" with progress, and a green border plus "+N new" ribbon on titles that gained chapters |
-| Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev follows it), **official volumes** (looked up from Wikipedia chapter lists, read from "Vol. N" in chapter names, found on the series' **Fandom wiki** when Wikipedia has nothing, imported from a Wikipedia or Fandom wiki link, or typed in by hand: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), a **Your .cbz files** panel (remembers the folder, lists which volumes you have and which are missing) and **merge .cbz files** into one (new volumes can be added to a complete-series file; chapters it already has are skipped), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
-| Reader | Paged (LTR/RTL) and webtoon modes, 4 fit modes, tap zones, swipe, keyboard, preloading, progress slider, resume position, auto mark-read, auto-download upcoming chapters, fullscreen |
+| Manga page | Blurred-cover header, readable synopsis with show more, collapsible genre tags, scanlation group bar (filter by group, "fill gaps from other groups", download all/unread per group; reader next/prev and `.cbz` exports follow it; with several groups and none chosen, Download all/unread asks first and then takes one copy of each chapter), **official volumes** (looked up from Wikipedia chapter lists, read from "Vol. N" in chapter names, found on the series' **Fandom wiki** when Wikipedia has nothing, imported from a Wikipedia or Fandom wiki link, or typed in by hand: a colored strip, volume dividers in the chapter list, filter by volume, select a whole volume), **download a volume or the whole series as one `.cbz`** with `ComicInfo.xml` metadata (writer, artist, genres, summary, release date, ISBN, chapter titles), a **Your .cbz files** panel (remembers the folder, lists which volumes you have and which are missing) and **merge .cbz files** into one (new volumes can be added to a complete-series file; chapters it already has are skipped), smart Continue/Start/Read-again button, categories, refresh, chapter filters (unread, downloaded, bookmarked), sort, shift-click range select, bulk mark read/unread, bookmark, download, delete downloads, per-manga reader settings |
+| Reader | Paged (left to right by default, right to left if you pick it, globally or per manga) and webtoon modes, 4 fit modes, tap zones, swipe, keyboard, preloading, progress slider, resume position, auto mark-read, auto-download upcoming chapters, fullscreen |
 | Updates | New chapters grouped by day, reading history, one-tap download |
 | Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel). **Show queue** on a job lists every chapter still waiting; a chapter that failed 3 times is marked and Resume retries it. **.cbz exports** ("⬇ All as .cbz" / a volume's ".cbz") are saved jobs: they download every chapter, then pack them into one file, show on this page with progress, and can be paused, resumed, skipped past a failing chapter, or cancelled. History at the bottom, with "Clear exports" / "Clear history" |
 | Browse | English sources only (a setting shows other languages), popular/latest/search with load-more, search results filtered to titles that contain your words, extension install/update/uninstall, refresh repository |
@@ -152,6 +152,9 @@ src/lib/wikiImport.ts import volumes from a Wikipedia/Fandom link (follows "Mang
 src/lib/volumeStore.ts  saves volume maps in the browser and on the Suwayomi server (manga meta)
 src/lib/volumeRules.ts  built-in volume lists for series no automatic source can read (data: src/data/volumeRules.json)
 scripts/                `npm run volumes:export` copies the volume lists you typed or imported from your server into that file
+src/lib/fandom.ts     find a series' Fandom wiki and read its volume list when Wikipedia has none
+src/lib/merge.ts      merge .cbz files (copies stored bytes, skips chapters already in an earlier file); zipRead.ts reads zips
+src/lib/folderStore.ts  remembers the folder you save a series' .cbz files in (IndexedDB)
 src/lib/export.ts     build a .cbz (pages + ComicInfo.xml), save to disk or download
 src/lib/zip.ts        tiny dependency-free zip writer (stored, streams to a file)
 src/lib/pacer.ts      paced bulk downloads: timing, one-chapter-at-a-time runner, saved jobs
@@ -163,7 +166,7 @@ src/lib/format.ts     dates (Suwayomi mixes seconds and milliseconds), descripti
 src/components/*      shared UI: cards, shelves with arrows, source search results, paced job list
 src/pages/*           Library, Manga, Reader, Updates, Downloads, Browse, Source, Settings
 src/styles.css        the whole design, driven by CSS variables at the top
-public/               logo and icons (originals in branding/)
+public/               logo, icons, web app manifest and service worker (originals in branding/)
 docs/screenshots/     README screenshots
 ```
 
@@ -189,6 +192,8 @@ Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and
   (one tab). The zip writer uses ZIP64 records, so one file can pass 4 GB and 65k pages (unit-tested with tiny limits, not
   with a real 4 GB file). Without Chrome/Edge's save-to-disk the archive is built in memory, which browsers cap at about
   2 GB. Not yet tested end to end against a real series (the download and pause steps were).
+- **Install as an app**: see [Install as an app](#install-as-an-app). The service worker keeps only the page itself and never caches `/api`,
+  so chapters and images always come live.
 - `.cbz` is a plain zip, not a RAR, so it opens in any comic reader; real `.cbr` needs WinRAR's tool.
 - The stock WebUI keeps running inside Suwayomi; Mangadeck ignores it. Mangadeck is just another client of the
   same API, so you can use both side by side.
@@ -196,4 +201,4 @@ Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and
 ## Ideas for next steps
 
 Tracker sync (AniList/MAL), double-page spreads, library duplicate finder, source migration, backup/restore UI,
-PWA install + offline reading from downloaded chapters.
+offline reading from downloaded chapters.
