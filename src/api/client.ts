@@ -105,6 +105,12 @@ function unauthorized(): never {
 
 export async function gql<T = any>(query: string, variables?: Record<string, unknown>): Promise<T> {
   let res = await post(query, variables ?? {}, getAccessToken());
+  // A gateway timeout (502/503/504) usually means a slow source or a busy server: ask again a couple of times first.
+  for (const wait of [1500, 4000]) {
+    if (![502, 503, 504].includes(res.status)) break;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await post(query, variables ?? {}, getAccessToken());
+  }
   if (res.status === 401) {
     if (await tryRefresh()) res = await post(query, variables ?? {}, getAccessToken());
     if (res.status === 401) unauthorized();

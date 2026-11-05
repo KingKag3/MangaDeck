@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { M, Q } from '../api/queries';
 import { Cover } from '../components/Cover';
-import { Empty, ErrorBox, PageHeader, Spinner, errorToast } from '../components/ui';
+import { Empty, ErrorBox, PageHeader, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import PacedJobs from '../components/PacedJobs';
 import ExportJobs from '../components/ExportJobs';
@@ -23,6 +23,20 @@ export default function DownloadsPage() {
     onError: errorToast,
   });
   const clear = useMutation({ mutationFn: M.clearDownloader, onSuccess: refresh, onError: errorToast });
+  // A chapter the server gave up on (504 from the source, timeouts) stays in the queue as an error. Putting it back
+  // resets its tries; the server picks up the pages it still needs.
+  const retry = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await M.dequeueDownloads(ids);
+      await M.enqueueDownloads(ids);
+      await M.startDownloader();
+    },
+    onSuccess: (_d, ids) => {
+      toast(`Trying ${ids.length} chapter${ids.length === 1 ? '' : 's'} again`);
+      refresh();
+    },
+    onError: errorToast,
+  });
   const remove = useMutation({
     mutationFn: (id: number) => M.dequeueDownloads([id]),
     onSuccess: refresh,
@@ -34,6 +48,7 @@ export default function DownloadsPage() {
 
   const queue = data?.queue ?? [];
   const running = data?.state === 'STARTED';
+  const failedIds = queue.filter((d) => d.state === 'ERROR').map((d) => d.chapter.id);
 
   return (
     <div className="page narrow">
@@ -52,6 +67,11 @@ export default function DownloadsPage() {
               <button className="btn" onClick={() => toggle.mutate()} disabled={toggle.isPending}>
                 {toggle.isPending ? 'Working…' : running ? 'Pause server queue' : 'Start server queue'}
               </button>
+              {failedIds.length > 0 && (
+                <button className="btn" onClick={() => retry.mutate(failedIds)} disabled={retry.isPending}>
+                  Retry {failedIds.length} failed
+                </button>
+              )}
               <button className="btn ghost" onClick={() => clear.mutate()} disabled={clear.isPending}>
                 Clear server queue
               </button>
@@ -89,6 +109,11 @@ export default function DownloadsPage() {
                       : 'Queued'}
                 </div>
               </div>
+              {d.state === 'ERROR' && (
+                <button className="btn" onClick={() => retry.mutate([d.chapter.id])} disabled={retry.isPending}>
+                  Retry
+                </button>
+              )}
               <button className="btn ghost" onClick={() => remove.mutate(d.chapter.id)} aria-label="Remove from queue">
                 ✕
               </button>
