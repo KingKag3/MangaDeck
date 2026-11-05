@@ -19,7 +19,7 @@ export const PARSER_VERSION = 3;
 
 /** Where a volume map came from, saved per manga. */
 export interface VolumeInfo {
-  source: 'wikipedia' | 'manual' | 'rule';
+  source: 'wikipedia' | 'fandom' | 'manual' | 'rule';
   /** When it was saved (ms). The newest copy wins when the browser and the server disagree. */
   savedAt?: number;
   /** The copy kept on the server had to leave out chapter titles (and maybe dates) to fit: refresh to get them back. */

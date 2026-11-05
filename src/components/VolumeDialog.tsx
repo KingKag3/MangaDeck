@@ -16,7 +16,7 @@ export default function VolumeDialog({
   title: string;
   initial: VolumeRange[] | undefined;
   /** Where the volumes in the box came from, when there are some. */
-  current?: { source: 'wikipedia' | 'manual' | 'rule'; page: string };
+  current?: { source: 'wikipedia' | 'fandom' | 'manual' | 'rule'; page: string };
   onSave: (ranges: VolumeRange[]) => void;
   onClose: () => void;
 }) {
@@ -57,7 +57,9 @@ export default function VolumeDialog({
               ? 'entered by hand'
               : current.source === 'rule'
                 ? `from the built-in list (${current.page})`
-                : `from Wikipedia (${current.page})`}
+                : current.source === 'fandom'
+                  ? `from a Fandom wiki (${current.page})`
+                  : `from Wikipedia (${current.page})`}
             . Change a line to correct it; the dates and chapter titles of volumes you keep stay.
           </p>
         )}

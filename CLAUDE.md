@@ -82,6 +82,15 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   become rules, a known title gets its ranges replaced when they changed, an identical list adds the title as another name.
   Lists read from Wikipedia are left out (every app finds those itself). Only titles and chapter ranges are stored, nothing
   personal.
+  **Fandom as an automatic source** (`src/lib/fandom.ts`, `lookupVolumesEverywhere()` is what Find volumes / Check for new volumes call):
+  when Wikipedia has no list, `lookupFandom()` guesses the series' wiki (`<slug>.fandom.com`, `wikiSlugs()` from the title, its variants and
+  the names AniList has for it, `aniListNames()`), checks the wiki's own site name against the title (`isWikiFor()`, so `gto` is not taken for
+  any wiki), finds list pages (wiki search, then Volumes / Chapters / Chapters and Volumes / Volumes and Chapters / Chapter List / ...), and
+  reads each with `importVolumesFromWiki()` (tables, "Volume N" pages, or text). A result is kept only if `plausibleRanges()` (2+ volumes, in
+  order, no overlap). Saved with `source: 'fandom'`, handled like `'wikipedia'` (replaced on re-check, not exported by `volumes:export`).
+  Fandom's cross-wiki search (`www.fandom.com/api/v1/Search/CrossWiki`) answers 403, so the address has to be guessed. Known misses: wikis
+  whose volume page is a stub or gallery (Solo Leveling, Lookism), wikis with only chapter lists (The Boxer), wikis with no search index (GTO).
+  Those still need Edit volumes / the wiki-link import.
   **Tried and rejected** (do not redo): MangaDex (browsers are bot-challenged; through a Vite/nginx relay it works but
   licensed series have few volumes filled in; Solo Leveling had only vol 1), Kitsu (`volumeNumber` is a placeholder:
   every Solo Leveling chapter is volume 1), AniList/MyAnimeList (volume counts only), Amazon/BookWalker (no chapter

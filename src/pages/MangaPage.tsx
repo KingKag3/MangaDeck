@@ -7,8 +7,9 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { listGroups, visibleChapters } from '../lib/groups';
-import { PARSER_VERSION, keepExtras, lookupVolumes, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
+import { PARSER_VERSION, keepExtras, mergeNewVolumes, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
+import { lookupVolumesEverywhere } from '../lib/fandom';
 import ShareDialog from '../components/ShareDialog';
 import MergeDialog from '../components/MergeDialog';
 import LocalFiles from '../components/LocalFiles';
@@ -173,11 +174,11 @@ export default function MangaPage() {
   }
 
   const findVolumes = useMutation({
-    mutationFn: () => lookupVolumes(manga.data!.title),
+    mutationFn: () => lookupVolumesEverywhere(manga.data!.title),
     onSuccess: (info) => {
       if (info) {
         saveVolumes(id, info);
-        toast(`Found ${info.ranges.length} volumes ${info.source === 'rule' ? 'in the built-in list' : 'on Wikipedia'}`);
+        toast(`Found ${info.ranges.length} volumes ${info.source === 'rule' ? 'in the built-in list' : info.source === 'fandom' ? 'on a Fandom wiki' : 'on Wikipedia'}`);
       } else toast('No chapter-by-volume list found for this title. Use “Set volumes” to enter them by hand.', 'error');
     },
     onError: errorToast,
@@ -185,11 +186,11 @@ export default function MangaPage() {
   // Look again for volumes released since the saved list. A list read from Wikipedia is simply replaced; one from the
   // built-in rules or typed by hand only gets the newer volumes added, so nothing you corrected is lost.
   const checkVolumes = useMutation({
-    mutationFn: () => lookupVolumes(manga.data!.title, { skipRules: true }),
+    mutationFn: () => lookupVolumesEverywhere(manga.data!.title, { skipRules: true }),
     onSuccess: (found) => {
       const cur = settings.volumes[String(id)];
       if (!found) return void toast('No volume list found online. Use “Edit volumes” to add the new volume by hand.', 'error');
-      if (!cur || cur.source === 'wikipedia') {
+      if (!cur || cur.source === 'wikipedia' || cur.source === 'fandom') {
         saveVolumes(id, found);
         return void toast(`Updated: ${found.ranges.length} volumes`);
       }
@@ -317,7 +318,7 @@ export default function MangaPage() {
   const redoneVolumes = useRef(false);
   useEffect(() => {
     // Volumes typed in by hand are never looked up again.
-    if (!volumeInfo || volumeInfo.source !== 'wikipedia' || (volumeInfo.v ?? 1) >= PARSER_VERSION || redoneVolumes.current || !manga.data) return;
+    if (!volumeInfo || (volumeInfo.source !== 'wikipedia' && volumeInfo.source !== 'fandom') || (volumeInfo.v ?? 1) >= PARSER_VERSION || redoneVolumes.current || !manga.data) return;
     redoneVolumes.current = true;
     findVolumes.mutate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -329,7 +330,7 @@ export default function MangaPage() {
     const remote = volumeInfoFromMeta(manga.data.meta);
     const action = chooseSync(volumeInfo, remote);
     // A shortened Wikipedia copy is marked old (v: 1), so the page quietly reads the full details again, once.
-    if (action === 'pull' && remote) setVolumeInfo(id, remote.slim && remote.source === 'wikipedia' ? { ...remote, v: 1 } : remote);
+    if (action === 'pull' && remote) setVolumeInfo(id, remote.slim && (remote.source === 'wikipedia' || remote.source === 'fandom') ? { ...remote, v: 1 } : remote);
     else if (action === 'push' && volumeInfo) pushVolumeMeta(id, volumeInfo);
     else if (action === 'none' && !volumeInfo && !remote) {
       // Nothing saved anywhere: a built-in rule for this series (shared with every user) fills it in, once.
@@ -659,7 +660,9 @@ export default function MangaPage() {
                     ? ' · entered by hand'
                     : volumeInfo.source === 'rule'
                       ? ` · from the built-in list (${volumeInfo.page})`
-                      : ` · from Wikipedia (${volumeInfo.page})`}
+                      : volumeInfo.source === 'fandom'
+                        ? ` · from a Fandom wiki (${volumeInfo.page})`
+                        : ` · from Wikipedia (${volumeInfo.page})`}
               </span>
               <span className="row gap">
                 {volumeInfo?.source === 'manual' && (
