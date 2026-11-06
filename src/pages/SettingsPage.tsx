@@ -6,6 +6,7 @@ import { PageHeader, errorToast, toast } from '../components/ui';
 import { PRESET_LABELS, type PaceConfig, type PacePreset } from '../lib/pacer';
 import LoginDialog from '../components/LoginDialog';
 import { Link } from 'react-router-dom';
+import { authorizeUrl, disconnect, isConnected, redirectUrl, setClientId, useTracker } from '../lib/tracker';
 import { groupsAcrossLibrary } from '../lib/groups';
 import { applyBackup, buildBackup, describeBackup, parseBackup } from '../lib/backup';
 import { updateSettings, useSettings, type Direction, type Fit, type ReaderMode } from '../lib/settings';
@@ -27,6 +28,7 @@ export default function SettingsPage() {
   const num = (v: string) => Math.max(0, Number(v) || 0);
   const setCustom = (p: Partial<PaceConfig>) => updateSettings({ paceCustom: { ...s.paceCustom, ...p } });
 
+  const tracker = useTracker();
   const [showGroups, setShowGroups] = useState(false);
   const groupList = useQuery({
     queryKey: ['libraryGroups'],
@@ -264,6 +266,41 @@ This replaces those settings in this browser (the server and your sign-in are no
           <span>Cover size: {s.gridWidth}px</span>
           <input type="range" min={100} max={260} step={10} value={s.gridWidth} onChange={(e) => updateSettings({ gridWidth: Number(e.target.value) })} />
         </label>
+      </section>
+
+      <section className="panel">
+        <h2>AniList tracking</h2>
+        <p className="muted small">
+          Finish a chapter (or mark it read) and your AniList list moves forward, never back. AniList needs a small "client" of your own to sign you in:
+          create one at <a href="https://anilist.co/settings/developer" target="_blank" rel="noreferrer">anilist.co/settings/developer</a> (Create New Client), set
+          its <b>Redirect URL</b> to the address below, and paste its <b>Client ID</b> here. The sign-in token stays in this browser and is sent only to AniList.
+        </p>
+        <label className="field">
+          <span>Redirect URL to give AniList (use the address you open Mangadeck at)</span>
+          <input readOnly value={redirectUrl()} onFocus={(e) => e.currentTarget.select()} />
+        </label>
+        <label className="field">
+          <span>Client ID</span>
+          <input value={tracker.clientId} onChange={(e) => setClientId(e.target.value)} placeholder="a number, shown on your AniList client" inputMode="numeric" />
+        </label>
+        <div className="row gap wrap">
+          {isConnected(tracker) ? (
+            <>
+              <span className="small">Connected as <b>{tracker.name || 'AniList user'}</b>.</span>
+              <button className="btn ghost" onClick={() => disconnect()}>
+                Disconnect
+              </button>
+            </>
+          ) : (
+            <button className="btn" disabled={!/^d+$/.test(tracker.clientId.trim())} onClick={() => window.location.assign(authorizeUrl(tracker.clientId))}>
+              Connect AniList
+            </button>
+          )}
+        </div>
+        <p className="muted small">
+          Each series is linked to the AniList entry with exactly its title (or one you pick on the series page, under "Track on AniList"). Sign-in lasts about a year.
+          Each address you open Mangadeck at (for example localhost:8080 and localhost:5173) is signed in on its own, and the redirect URL above must match the one you register.
+        </p>
       </section>
 
       <section className="panel">

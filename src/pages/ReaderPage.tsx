@@ -5,6 +5,7 @@ import { M, Q, type Chapter } from '../api/queries';
 import { ErrorBox, Spinner, toast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import { groupPrefFor, visibleChapters } from '../lib/groups';
+import { trackRead } from '../lib/tracker';
 import { preloadImage, useImage } from '../lib/useImage';
 import {
   effectivePrefs,
@@ -120,6 +121,8 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
 
   /* ----- progress saving ----- */
   const dirty = useRef(false);
+  const numRef = useRef(-1); // chapter number of the open chapter, for AniList
+  numRef.current = chapter?.chapterNumber ?? -1;
   const timer = useRef<number | undefined>(undefined);
   const live = useRef({ current: 0, total: 0 });
   live.current = { current, total };
@@ -130,8 +133,9 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
     dirty.current = false;
     const { current: cur, total: tot } = live.current;
     const done = cur >= tot - 1;
+    if (done) trackRead(mangaId, numRef.current);
     return M.updateChapter(chapterId, done ? { isRead: true, lastPageRead: cur } : { lastPageRead: cur }).catch(() => undefined);
-  }, [chapterId]);
+  }, [chapterId, mangaId]);
 
   const go = useCallback(
     (i: number) => {

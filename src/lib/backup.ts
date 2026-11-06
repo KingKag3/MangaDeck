@@ -13,6 +13,7 @@ export const BACKUP_KEYS = [
   'mangadeck.libsources',
   'mangadeck.fresh',
   'mangadeck.updsnap',
+  'mangadeck.tracker', // which AniList entry each series is linked to (the sign-in token is never included)
 ] as const;
 
 export interface BackupFile {

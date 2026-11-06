@@ -114,6 +114,7 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 | Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel). **Show queue** on a job lists every chapter still waiting; a chapter that failed 3 times is marked and Resume retries it. **.cbz exports** ("⬇ All as .cbz" / a volume's ".cbz") are saved jobs: they download every chapter, then pack them into one file, show on this page with progress, and can be paused, resumed, skipped past a failing chapter, or cancelled. History at the bottom, with "Clear exports" / "Clear history" |
 | Browse | English sources only (a setting shows other languages), popular/latest/search with load-more, search results filtered to titles that contain your words, extension install/update/uninstall, refresh repository |
 | Offline | **Save for offline reading**: the ⤓ button on a chapter, **Save offline** on selected chapters, or **Save next 10 unread offline** keeps the pages on this device. When the server cannot be reached the app still opens (it is installable), shows the last saved library and series pages with a notice, and opens saved chapters. Reading progress made meanwhile is sent when the server is back. **Offline library** (Downloads page) lists what is saved and what it costs, with remove buttons |
+| Tracking | **AniList sync** (optional): connect your AniList account in Settings (you create a small client at anilist.co/settings/developer and paste its ID), and finishing a chapter or marking it read moves your AniList progress forward, never back, and marks the series Completed at its last chapter. Each series links to the AniList entry with exactly its title, or one you pick under "Track on AniList" on the series page, with **Sync progress now** |
 | Settings | Reader defaults, bulk download speed, a **preferred scanlation group** for every series that has it (a group picked on a manga's own page wins; **Show the groups in my library** lists every group with its series count and a Prefer button), **Find duplicate series** (the same title added from two sources, with Open / Remove), and **Backup**: download your browser-side data (group choices, linked sources, volume lists, history, library view) as one file and restore it on another computer |
 
 Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` chapters, `M` toggle menu, `F` fullscreen, `Esc` back.
@@ -176,7 +177,8 @@ and fails on script errors, an empty library, a broken group list or group bar, 
   release renames a field, `src/api/queries.ts` is the only file to touch.
 - Download progress and library updates are polled (2–5 s) rather than using GraphQL subscriptions.
 - Two features talk to outside services straight from your browser: official volumes read Wikipedia
-  (`en.wikipedia.org`) and recommendations read AniList (`graphql.anilist.co`). They send only a manga title.
+  (`en.wikipedia.org`) and recommendations read AniList (`graphql.anilist.co`). They send only a manga title. If you connect AniList tracking, your sign-in token (kept in this browser, never in a backup)
+  and reading progress also go to AniList, and to nothing else.
   Nothing else leaves your network, and nothing breaks if they are unreachable.
 - Paced downloads wait in the browser, so keep a Mangadeck tab open while a long job runs (a hidden tab slows its
   timers, which only makes the waits longer). The server has no download delay setting of its own.
@@ -199,4 +201,4 @@ and fails on script errors, an empty library, a broken group list or group bar, 
 
 ## Ideas for next steps
 
-Tracker sync (AniList/MAL), double-page spreads, a faster source migration, and reading chapters offline that were not saved first.
+MyAnimeList sync, double-page spreads, a faster source migration, and reading chapters offline that were not saved first.

@@ -170,6 +170,8 @@ for (const [name, path, expect] of [
   ['downloads page', '/downloads', /Downloads/],
   ['browse page', '/browse', /Sources|Extensions/],
   ['settings page with backup', '/settings', /Backup/],
+  ['settings page with AniList tracking', '/settings', /AniList tracking/],
+  ['offline library page', '/offline', /Offline library/],
 ]) {
   await check(name, async () => {
     await go(path);

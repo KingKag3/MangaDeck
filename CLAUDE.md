@@ -23,6 +23,15 @@ Settings live in `localStorage` (`mangadeck.settings`, server override in `manga
 The service worker caches only `index.html` for navigations and never touches `/api`. nginx serves `sw.js` and the manifest with `no-cache`.
 `open-mangadeck-app.bat` opens a frameless `--app=` window without installing. Bump `SHELL` in `sw.js` if the caching ever changes.
 
+## AniList tracking
+`lib/tracker.ts`: AniList's implicit OAuth (user registers a client, pastes its ID in Settings, `authorizeUrl()` sends them to AniList, which returns to `/anilist`
+(`AniListCallbackPage`) with `#access_token`; the page strips it from the address at once). Token + client id live in `mangadeck.anilist`, series links in `mangadeck.tracker`;
+only the links are in the backup file, never the token. The token goes only to `graphql.anilist.co`. `trackRead(mangaId, chapterNumber)` is called from the reader (chapter finished) and from
+`MangaPage`'s mark-read mutation; `pushProgress()` is serialized, reads the current entry and writes only if ahead (`nextEntry()`: never lowers, COMPLETED when the last chapter is reached, a
+COMPLETED/REPEATING entry keeps its status). Whole chapters only (`Math.floor`). `TrackerPanel` (series page, only when connected) auto-links an exact title match once, offers Sync now / Change
+entry / Stop. The real sign-in cannot be automated (needs the user's AniList account); the push logic was tested against a mocked AniList through CDP `Fetch.fulfillRequest`.
+Not built: pulling progress from AniList, MyAnimeList, a retry queue for pushes made while AniList is unreachable (use Sync progress now).
+
 ## Offline reading
 Three parts. (1) **Last good answers**: `gql()` (`api/client.ts`) stores every successful query in IndexedDB (`lib/offlineDb.ts`, `responses`, key = query text + variables, newest 200 kept);
 when the server cannot be reached (fetch fails, or 502/503/504 after retries; no retries when `navigator.onLine` is false) a query returns its stored answer and
@@ -264,8 +273,8 @@ Not yet exercised: UI_LOGIN auth, and a full-volume `.cbz` opened in a real comi
 Good next step: grow the smoke test (reader paging, group bar) or move it to Playwright if it gets complicated.
 
 ## Ideas not built yet
-Tracker sync (AniList/MAL), double-page spreads, duplicate finder, source migration, 
-reading chapters offline that were not saved first, tracker sync (the app is installable and saved chapters read offline).
+MyAnimeList sync, pulling progress from AniList, double-page spreads, source migration, reading chapters offline that were not saved first
+(the app is installable and saved chapters read offline).
 
 ## Style
 Keep it plain: function components, hooks, no new dependencies unless they clearly earn their place. Prefer small

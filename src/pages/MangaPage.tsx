@@ -17,6 +17,8 @@ import LocalFiles from '../components/LocalFiles';
 import { saveFolder } from '../lib/folderStore';
 import LinkedSources from '../components/LinkedSources';
 import RatingPanel from '../components/RatingPanel';
+import TrackerPanel from '../components/TrackerPanel';
+import { trackRead } from '../lib/tracker';
 import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
@@ -266,7 +268,13 @@ export default function MangaPage() {
   const patch = useMutation({
     mutationFn: ({ ids, p }: { ids: number[]; p: { isRead?: boolean; isBookmarked?: boolean } }) =>
       M.updateChapters(ids, p),
-    onSuccess: refreshAll,
+    onSuccess: (_d, v) => {
+      if (v.p.isRead) {
+        const nums = (chapters.data ?? []).filter((c) => v.ids.includes(c.id)).map((c) => c.chapterNumber);
+        if (nums.length) trackRead(id, Math.max(...nums)); // AniList only ever moves forward
+      }
+      refreshAll();
+    },
     onError: errorToast,
   });
 
@@ -538,6 +546,7 @@ Cancel: stop, so you can pick a group in the group bar first.`,
           </div>
 
           <RatingPanel title={m.title} />
+          <TrackerPanel mangaId={id} title={m.title} chapters={everything} />
 
           <LinkedSources
             id={id}
