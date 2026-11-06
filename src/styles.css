@@ -2049,3 +2049,41 @@ details.linked-sources > summary {
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--ok) 8%, var(--surface));
 }
+
+/* ---------- Library sections: shelves are panels, "Your library" is its own headed block ---------- */
+.shelf h2,
+.lib-head h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 1.1rem;
+}
+.shelf h2::before,
+.lib-head h2::before {
+  content: '';
+  align-self: center;
+  width: 4px;
+  height: 1.1em;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.shelf h2 .muted,
+.lib-head h2 .muted {
+  font-weight: 400;
+}
+.shelf.recs {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px 8px;
+}
+.lib-head {
+  margin: 34px 0 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.page > .shelf:first-of-type + .lib-head,
+.lib-head:first-child {
+  margin-top: 8px;
+}

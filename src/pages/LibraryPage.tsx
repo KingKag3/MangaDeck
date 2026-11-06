@@ -520,6 +520,12 @@ export default function LibraryPage() {
           </Empty>
         )
       ) : (
+        <>
+        <div className="lib-head">
+          <h2>
+            Your library <span className="muted small">· {visible.length === mangas.length ? `${mangas.length} titles` : `${visible.length} of ${mangas.length} titles`}</span>
+          </h2>
+        </div>
         <div className="grid" style={{ ['--cw' as string]: `${settings.gridWidth}px` }}>
           {visible.map((m) => (
             <MangaCard
@@ -542,6 +548,7 @@ export default function LibraryPage() {
             />
           ))}
         </div>
+        </>
       )}
     </div>
   );
