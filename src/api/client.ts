@@ -2,6 +2,8 @@
 // - Server URL defaults to same-origin (/api/graphql) so the Docker nginx / Vite dev proxy just works.
 // - Supports UI_LOGIN (JWT bearer + refresh). BASIC_AUTH / SIMPLE_LOGIN work through the browser itself.
 
+import { clearResponses, readResponse, responseKey, saveResponse } from '../lib/offlineDb';
+
 const LS = {
   server: 'mangadeck.server',
   access: 'mangadeck.access',
@@ -9,6 +11,24 @@ const LS = {
 };
 
 export const UNAUTHORIZED_EVENT = 'mangadeck:unauthorized';
+export const OFFLINE_EVENT = 'mangadeck:offline';
+
+// True while the server cannot be reached and answers come from the last saved copy (see gql below).
+let offline = false;
+let since: number | null = null;
+export const isOffline = () => offline;
+export const offlineSince = () => since;
+function setOffline(v: boolean, at: number | null = null) {
+  if (v === offline && at === since) return;
+  offline = v;
+  since = v ? at : null;
+  window.dispatchEvent(new Event(OFFLINE_EVENT));
+}
+
+/** True for "could not reach the server" (a failed fetch, or the proxy answering 502/503/504). */
+export function isNetworkError(e: unknown): boolean {
+  return e instanceof TypeError || (e instanceof GqlError && !!e.status && [0, 502, 503, 504].includes(e.status));
+}
 
 export function getServer(): string {
   try {
@@ -38,6 +58,7 @@ export function setTokens(access: string, refresh?: string) {
 export function clearTokens() {
   localStorage.removeItem(LS.access);
   localStorage.removeItem(LS.refresh);
+  void clearResponses(); // saved answers belong to the signed-in user
 }
 
 /** Turn a server-relative path ("/api/v1/manga/1/thumbnail") into a loadable URL. */
@@ -103,14 +124,37 @@ function unauthorized(): never {
   throw new GqlError('Not authorized', 401);
 }
 
+/**
+ * Run a query. Reads are remembered; when the server cannot be reached the last remembered answer is returned instead
+ * (and the app shows the offline banner). Mutations are never faked: they throw.
+ */
 export async function gql<T = any>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  let res = await post(query, variables ?? {}, getAccessToken());
+  const isMutation = /^s*mutation/.test(query);
+  const key = isMutation ? '' : responseKey(query, variables);
+  const fallback = async (err: unknown): Promise<T> => {
+    const hit = key ? await readResponse(key) : null;
+    if (!hit) throw err;
+    setOffline(true, hit.at);
+    return hit.data as T;
+  };
+
+  let res: Response;
+  try {
+    res = await post(query, variables ?? {}, getAccessToken());
+  } catch (e) {
+    return fallback(e);
+  }
   // A gateway timeout (502/503/504) usually means a slow source or a busy server: ask again a couple of times first.
-  for (const wait of [1500, 4000]) {
+  for (const wait of navigator.onLine ? [1500, 4000] : []) {
     if (![502, 503, 504].includes(res.status)) break;
     await new Promise((r) => setTimeout(r, wait));
-    res = await post(query, variables ?? {}, getAccessToken());
+    try {
+      res = await post(query, variables ?? {}, getAccessToken());
+    } catch (e) {
+      return fallback(e);
+    }
   }
+  if ([502, 503, 504].includes(res.status)) return fallback(new GqlError(`Server responded ${res.status} ${res.statusText}`, res.status));
   if (res.status === 401) {
     if (await tryRefresh()) res = await post(query, variables ?? {}, getAccessToken());
     if (res.status === 401) unauthorized();
@@ -124,6 +168,8 @@ export async function gql<T = any>(query: string, variables?: Record<string, unk
     if (!json.data) throw new GqlError(msg);
     console.warn('GraphQL partial errors:', msg);
   }
+  setOffline(false);
+  if (key && json.data) void saveResponse(key, json.data);
   return json.data as T;
 }
 

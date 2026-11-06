@@ -5,6 +5,8 @@
 //   npm run smoke                                 against http://localhost:8080 (the Docker build)
 //   SMOKE_URL=http://localhost:5173 npm run smoke against the dev server
 //   npm run smoke -- --reader                     also open the reader on the first chapter of the first title
+//   npm run smoke -- --offline                    also save one chapter for offline reading, cut the network, and read it
+//                                                 (the chapter is fetched once through Suwayomi; it is stored only in the throwaway Chrome profile)
 //
 // Exit code 1 when a check fails, so it can sit in a script or CI.
 import { spawn } from 'node:child_process';
@@ -14,6 +16,7 @@ import { join } from 'node:path';
 
 const ORIGIN = (process.env.SMOKE_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 const READER = process.argv.includes('--reader');
+const OFFLINE = process.argv.includes('--offline');
 const PORT = 9335;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -217,6 +220,35 @@ if (READER && firstId) {
     await go(href);
     const ok = await waitFor("[...document.images].some((i) => i.complete && i.naturalWidth > 0)", 30000);
     if (!ok) return 'no page image loaded';
+  });
+}
+
+if (OFFLINE && firstId) {
+  await check('offline: save a chapter, lose the server, still read it', async () => {
+    await go(`/manga/${firstId}`);
+    const row = await waitFor("document.querySelectorAll('.chapter .icon-btn[title^=\"Save for offline\"]').length");
+    if (!row) return 'no chapter with a Save for offline button';
+    await evalJs("document.querySelector('.chapter .icon-btn[title^=\"Save for offline\"]').click()");
+    const saved = await waitFor("!!document.querySelector('.chapter .icon-btn.saved') || /could not be saved/.test(document.body.innerText)", 120000);
+    if (!saved) return 'the chapter was not saved within 2 minutes. Page said: ' + (await evalJs("[...document.querySelectorAll('.offline-bar, .toast')].map((e) => e.innerText).join(' | ')"));
+    const pages = await evalJs("caches.open('mangadeck-offline-pages').then((c) => c.keys()).then((k) => k.length)");
+    if (!pages) return 'no page images in the offline cache';
+    const href = await evalJs("document.querySelector('.chapter .icon-btn.saved').closest('li').querySelector('a[href^=\"/read/\"]').getAttribute('href')");
+    await send('Network.enable');
+    await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    try {
+      await go(href);
+      const shown = await waitFor('[...document.images].some((i) => i.complete && i.naturalWidth > 0)', 30000);
+      if (!shown) return 'the saved chapter did not open offline';
+      await go(`/manga/${firstId}`);
+      const bar = await waitFor("/Can't reach the server/.test(document.body.innerText)", 20000);
+      if (!bar) return 'no offline notice on the series page';
+      await go('/');
+      const lib = await waitFor("document.querySelectorAll('.grid .card').length", 20000);
+      if (!lib) return 'the library did not open offline from the saved copy';
+    } finally {
+      await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    }
   });
 }
 

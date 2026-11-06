@@ -6,6 +6,7 @@ import { startPacer } from '../lib/pacer';
 import { startExporter } from '../lib/exportJobs';
 import { initRemoteRules } from '../lib/remoteRules';
 import { useDownloadWatch } from '../lib/downloadWatch';
+import OfflineBar from './OfflineBar';
 
 const NAV = [
   { to: '/', label: 'Library', icon: 'M4 5h4v14H4zM10 5h4v14h-4zM16.5 6l3.7 1-3 12-3.7-1z' },
@@ -51,6 +52,7 @@ export default function Layout() {
         ))}
       </nav>
       <main className="main">
+        <OfflineBar />
         <Outlet />
       </main>
     </div>

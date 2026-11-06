@@ -1,4 +1,6 @@
-import { gql } from './client';
+import { gql, isNetworkError } from './client';
+import { getSavedPages } from '../lib/offlineDb';
+import { queueProgress } from '../lib/offlineQueue';
 
 /* ---------- Types (hand-written to match the fields we request) ---------- */
 
@@ -288,13 +290,20 @@ export const Q = {
 
 export const M = {
   async fetchPages(chapterId: number): Promise<string[]> {
-    const d = await gql(
-      `mutation($id: Int!) {
-        fetchChapterPages(input: { chapterId: $id }) { pages chapter { id pageCount } }
-      }`,
-      { id: chapterId },
-    );
-    return d.fetchChapterPages.pages;
+    try {
+      const d = await gql(
+        `mutation($id: Int!) {
+          fetchChapterPages(input: { chapterId: $id }) { pages chapter { id pageCount } }
+        }`,
+        { id: chapterId },
+      );
+      return d.fetchChapterPages.pages;
+    } catch (e) {
+      // Server out of reach: a chapter saved for offline reading still has its page list.
+      const saved = isNetworkError(e) ? await getSavedPages(chapterId) : null;
+      if (saved) return saved;
+      throw e;
+    }
   },
 
   updateChapters(ids: number[], patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }) {
@@ -306,13 +315,23 @@ export const M = {
     );
   },
 
-  updateChapter(id: number, patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }) {
-    return gql(
-      `mutation($id: Int!, $patch: UpdateChapterPatchInput!) {
-        updateChapter(input: { id: $id, patch: $patch }) { chapter { id isRead lastPageRead } }
-      }`,
-      { id, patch },
-    );
+  /** Reading progress made while the server is out of reach is queued and sent later (unless `queue: false`). */
+  async updateChapter(id: number, patch: { isRead?: boolean; isBookmarked?: boolean; lastPageRead?: number }, o: { queue?: boolean } = {}) {
+    try {
+      return await gql(
+        `mutation($id: Int!, $patch: UpdateChapterPatchInput!) {
+          updateChapter(input: { id: $id, patch: $patch }) { chapter { id isRead lastPageRead } }
+        }`,
+        { id, patch },
+      );
+    } catch (e) {
+      const progressOnly = Object.keys(patch).every((k) => k === 'isRead' || k === 'lastPageRead');
+      if (o.queue !== false && progressOnly && isNetworkError(e)) {
+        queueProgress(id, patch as { isRead?: boolean; lastPageRead?: number });
+        return null;
+      }
+      throw e;
+    }
   },
 
   setMangaMeta(mangaId: number, key: string, value: string) {

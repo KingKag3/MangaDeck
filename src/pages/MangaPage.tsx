@@ -7,6 +7,7 @@ import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
 import { groupOf, groupPrefFor, listGroups, visibleChapters } from '../lib/groups';
+import { removeSaved, startSaving, useSavedChapters } from '../lib/offline';
 import { PARSER_VERSION, keepExtras, mergeNewVolumes, oneCopyEach, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { lookupVolumesEverywhere } from '../lib/fandom';
@@ -312,6 +313,18 @@ Cancel: stop, so you can pick a group in the group bar first.`,
     },
     onError: errorToast,
   });
+
+  // Chapters saved on this device for reading without the server.
+  const savedList = useSavedChapters();
+  const savedIds = useMemo(() => new Set(savedList.map((c) => c.chapterId)), [savedList]);
+  async function saveOffline(list: Chapter[]) {
+    const r = await startSaving(
+      list.map((c) => ({ id: c.id, mangaId: id, name: chapterLabel(c), chapterNumber: c.chapterNumber, isDownloaded: c.isDownloaded })),
+      manga.data?.title ?? 'This series',
+    );
+    if (!r.started) toast(r.skipped ? 'Those chapters are already saved offline' : 'Another save is running, or there is nothing to save');
+    else if (r.skipped) toast(`${r.skipped} already saved, saving the rest`);
+  }
 
   const everything = chapters.data ?? []; // every chapter from every group, newest first (sourceOrder desc)
   // Chapters that linked sources add (numbers this source lacks): used when packing .cbz files.
@@ -645,6 +658,17 @@ Cancel: stop, so you can pick a group in the group bar first.`,
             >
               Download all{activeGroup ? ` (${activeGroup})` : ''}
             </button>
+            <button
+              className="btn ghost"
+              title="Keep the next unread chapters on this device so you can read them without the server"
+              onClick={() => {
+                const next = [...all].reverse().filter((c) => !c.isRead && !savedIds.has(c.id)).slice(0, 10);
+                if (next.length) void saveOffline(next);
+                else toast('Nothing unread left to save');
+              }}
+            >
+              Save next 10 unread offline
+            </button>
           </div>
         </div>
 
@@ -744,6 +768,9 @@ Cancel: stop, so you can pick a group in the group bar first.`,
             <button className="btn ghost" onClick={() => paced(selIds)}>
               Download
             </button>
+            <button className="btn ghost" onClick={() => void saveOffline(everything.filter((c) => selected.has(c.id)).reverse())}>
+              Save offline
+            </button>
             <button className="btn ghost" onClick={() => removeDownloads.mutate(selIds)}>
               Delete downloads
             </button>
@@ -837,6 +864,13 @@ Cancel: stop, so you can pick a group in the group bar first.`,
                         ⬇
                       </button>
                     )}
+                    <button
+                      className={`icon-btn ${savedIds.has(c.id) ? 'saved' : ''}`}
+                      title={savedIds.has(c.id) ? 'Saved for offline reading – click to remove' : 'Save for offline reading'}
+                      onClick={() => (savedIds.has(c.id) ? void removeSaved(c.id) : void saveOffline([c]))}
+                    >
+                      {savedIds.has(c.id) ? '◉' : '⤓'}
+                    </button>
                     <button
                       className="icon-btn"
                       title={c.isRead ? 'Mark unread' : 'Mark read'}

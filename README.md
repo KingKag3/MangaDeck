@@ -113,6 +113,7 @@ real extension sources, downloads of remote chapters, and UI_LOGIN auth.
 | Updates | New chapters grouped by day, reading history, one-tap download |
 | Downloads | Live queue with progress, start/pause, clear, remove. **Paced downloads**: bulk downloads (download all/unread, selections) go one chapter at a time with a randomised wait in between so a source does not ban you (Gentle / Normal / Fast presets or custom numbers, a longer break every N chapters, backoff and auto-pause when a source starts failing, pause/resume/cancel). **Show queue** on a job lists every chapter still waiting; a chapter that failed 3 times is marked and Resume retries it. **.cbz exports** ("⬇ All as .cbz" / a volume's ".cbz") are saved jobs: they download every chapter, then pack them into one file, show on this page with progress, and can be paused, resumed, skipped past a failing chapter, or cancelled. History at the bottom, with "Clear exports" / "Clear history" |
 | Browse | English sources only (a setting shows other languages), popular/latest/search with load-more, search results filtered to titles that contain your words, extension install/update/uninstall, refresh repository |
+| Offline | **Save for offline reading**: the ⤓ button on a chapter, **Save offline** on selected chapters, or **Save next 10 unread offline** keeps the pages on this device. When the server cannot be reached the app still opens (it is installable), shows the last saved library and series pages with a notice, and opens saved chapters. Reading progress made meanwhile is sent when the server is back. **Offline library** (Downloads page) lists what is saved and what it costs, with remove buttons |
 | Settings | Reader defaults, bulk download speed, a **preferred scanlation group** for every series that has it (a group picked on a manga's own page wins; **Show the groups in my library** lists every group with its series count and a Prefer button), **Find duplicate series** (the same title added from two sources, with Open / Remove), and **Backup**: download your browser-side data (group choices, linked sources, volume lists, history, library view) as one file and restore it on another computer |
 
 Reader keys: `←/→` pages (direction-aware), `Space`/`Shift+Space`, `[` `]` chapters, `M` toggle menu, `F` fullscreen, `Esc` back.
@@ -167,7 +168,7 @@ docs/screenshots/     README screenshots
 Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping, backup and date helpers.
 
 Smoke test: `npm run smoke` opens the main pages in headless Chrome against your running Mangadeck (default `http://localhost:8080`, or set `SMOKE_URL`)
-and fails on script errors, an empty library, a broken group list or group bar, a sideways-scrolling phone layout and similar. It only reads; add `-- --reader` to also open a chapter.
+and fails on script errors, an empty library, a broken group list or group bar, a sideways-scrolling phone layout and similar. It only reads; add `-- --reader` to also open a chapter, or `-- --offline` to save one chapter, cut the network and read it.
 
 ## Notes
 
@@ -198,5 +199,4 @@ and fails on script errors, an empty library, a broken group list or group bar, 
 
 ## Ideas for next steps
 
-Tracker sync (AniList/MAL), double-page spreads, library duplicate finder, source migration, backup/restore UI,
-offline reading from downloaded chapters.
+Tracker sync (AniList/MAL), double-page spreads, a faster source migration, and reading chapters offline that were not saved first.

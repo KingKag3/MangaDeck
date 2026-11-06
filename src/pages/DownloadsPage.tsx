@@ -56,6 +56,9 @@ export default function DownloadsPage() {
   return (
     <div className="page narrow">
       <PageHeader title="Downloads">
+        <Link className="btn ghost" to="/offline" title="Chapters saved on this device for reading without the server">
+          Offline library
+        </Link>
         <button className="btn ghost" onClick={() => setMerging(true)} title="Join .cbz files you already downloaded (for example volumes) into one file">
           Merge .cbz files
         </button>

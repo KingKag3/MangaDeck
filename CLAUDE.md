@@ -23,6 +23,17 @@ Settings live in `localStorage` (`mangadeck.settings`, server override in `manga
 The service worker caches only `index.html` for navigations and never touches `/api`. nginx serves `sw.js` and the manifest with `no-cache`.
 `open-mangadeck-app.bat` opens a frameless `--app=` window without installing. Bump `SHELL` in `sw.js` if the caching ever changes.
 
+## Offline reading
+Three parts. (1) **Last good answers**: `gql()` (`api/client.ts`) stores every successful query in IndexedDB (`lib/offlineDb.ts`, `responses`, key = query text + variables, newest 200 kept);
+when the server cannot be reached (fetch fails, or 502/503/504 after retries; no retries when `navigator.onLine` is false) a query returns its stored answer and
+`OfflineBar` shows a notice (`OFFLINE_EVENT`). Mutations are never faked. Sign-out clears these (`clearTokens`). (2) **Saved chapters** (`lib/offline.ts`): `saveChapterOffline()` fetches the
+page list (`M.fetchPages`) and every page image and puts them in Cache Storage `mangadeck-offline-pages` (key = the page URL), plus a record with the page list in IndexedDB
+(`chapters`). `M.fetchPages` falls back to that record when offline. A save job runs one chapter at a time (Layout shows progress, Cancel); chapters the server has not downloaded wait
+between each other like paced downloads. UI: row button, bulk bar, "Save next 10 unread offline" on `MangaPage`, `/offline` (`OfflinePage`). (3) `public/sw.js` serves the app shell, `/assets/*`,
+saved page images (cache `mangadeck-offline-pages`, never deleted by the worker) and covers. Reading progress made offline is queued (`offlineQueue.ts`, `mangadeck.pendingProgress`) by
+`M.updateChapter` and sent by `flushProgress()` when the server is back. Limits: only chapters saved first are readable; series and library pages need to have been opened online once; the browser may
+evict storage under pressure (we ask for persistent storage when saving). `npm run smoke -- --offline` tests the whole path (save, network off, read).
+
 ## Backup and preferred group
 `lib/backup.ts` (`BACKUP_KEYS`, `buildBackup/parseBackup/applyBackup`) and Settings, Backup: a JSON file of the browser-side keys (settings incl. groups, links, volumes,
 history, merged notes, library view). Never tokens, the server address, caches or unfinished jobs; IndexedDB folder handles cannot be exported. Restore replaces
@@ -254,7 +265,7 @@ Good next step: grow the smoke test (reader paging, group bar) or move it to Pla
 
 ## Ideas not built yet
 Tracker sync (AniList/MAL), double-page spreads, duplicate finder, source migration, 
-offline reading of downloaded chapters (the app is already installable).
+reading chapters offline that were not saved first, tracker sync (the app is installable and saved chapters read offline).
 
 ## Style
 Keep it plain: function components, hooks, no new dependencies unless they clearly earn their place. Prefer small
