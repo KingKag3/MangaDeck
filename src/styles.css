@@ -2148,3 +2148,49 @@ details.linked-sources > summary {
 .icon-btn.saved {
   color: var(--accent);
 }
+
+/* ---------- Manga page: the collapsed rows (rating, tracking, other sources, reader settings) ---------- */
+details.reader-override {
+  margin-top: 8px;
+  padding: 9px 14px;
+  background: rgba(22, 24, 30, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  transition: border-color 0.15s, background 0.15s;
+}
+details.reader-override:hover,
+details.reader-override[open] {
+  border-color: rgba(232, 176, 74, 0.45);
+}
+details.reader-override[open] {
+  background: rgba(22, 24, 30, 0.9);
+}
+details.reader-override > summary {
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  color: var(--text);
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+details.reader-override > summary::-webkit-details-marker {
+  display: none;
+}
+details.reader-override > summary::before {
+  content: '';
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+details.reader-override[open] > summary::before {
+  transform: rotate(45deg);
+}
+details.reader-override > summary .muted {
+  color: var(--muted);
+}
