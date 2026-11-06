@@ -19,6 +19,7 @@ export interface Settings extends ReaderPrefs {
   gridWidth: number; // min cover width in px
   autoDownloadNext: number; // queue N unread chapters ahead when reading (0 = off)
   saveAhead: number; // save the next N unread chapters on this device while reading (0 = off)
+  clearReadSaved: boolean; // remove chapters saved ahead once they are read
   showBadges: boolean;
   pacePreset: PacePreset; // wait between chapters of a bulk download
   paceCustom: PaceConfig;
@@ -41,6 +42,7 @@ const defaults: Settings = {
   gridWidth: 150,
   autoDownloadNext: 0,
   saveAhead: 0,
+  clearReadSaved: true,
   showBadges: true,
   pacePreset: 'normal',
   paceCustom: { delay: 20, jitter: 0.3, breakEvery: 15, breakSecs: 120 },

@@ -73,7 +73,7 @@ async function withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise
 }
 
 /** Download every page of one chapter into the cache and record it. */
-export async function saveChapterOffline(c: SaveItem, mangaTitle: string, signal?: AbortSignal): Promise<void> {
+export async function saveChapterOffline(c: SaveItem, mangaTitle: string, signal?: AbortSignal, auto = false): Promise<void> {
   if (typeof caches === 'undefined') throw new Error('This browser cannot store pages for offline reading.');
   const pages = await withRetry(() => M.fetchPages(c.id), signal);
   if (!pages.length) throw new Error(`“${c.name}” has no pages.`);
@@ -89,7 +89,7 @@ export async function saveChapterOffline(c: SaveItem, mangaTitle: string, signal
     }
   };
   await Promise.all(Array.from({ length: Math.min(3, pages.length) }, worker));
-  const rec: SavedChapter = { chapterId: c.id, mangaId: c.mangaId, mangaTitle, name: c.name, number: c.chapterNumber, pages, bytes, savedAt: Date.now() };
+  const rec: SavedChapter = { chapterId: c.id, mangaId: c.mangaId, mangaTitle, name: c.name, number: c.chapterNumber, pages, bytes, savedAt: Date.now(), ...(auto ? { auto: true } : {}) };
   await putSavedChapter(rec);
   saved.set(c.id, strip(rec));
   emit();
@@ -104,6 +104,11 @@ export async function removeSaved(chapterId: number): Promise<void> {
   await deleteSavedChapter(chapterId);
   saved.delete(chapterId);
   emit();
+}
+
+/** Drop a chapter that save-ahead saved once it has been read (chapters saved by hand stay). */
+export async function removeIfAuto(chapterId: number): Promise<void> {
+  if (saved.get(chapterId)?.auto) await removeSaved(chapterId);
 }
 
 export async function removeAllSaved(): Promise<void> {
@@ -166,7 +171,7 @@ export async function startSaving(items: SaveItem[], mangaTitle: string, quiet =
       if (signal.aborted) break;
       setJob({ current: c.name });
       try {
-        await saveChapterOffline(c, mangaTitle, signal);
+        await saveChapterOffline(c, mangaTitle, signal, quiet);
         setJob({ done: job.done + 1 });
       } catch (e) {
         if (signal.aborted) break;

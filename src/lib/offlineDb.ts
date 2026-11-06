@@ -18,6 +18,8 @@ export interface SavedChapter {
   pages: string[];
   bytes: number;
   savedAt: number;
+  /** Saved by "save next chapters while reading" rather than by hand: removed again once read (if the setting is on). */
+  auto?: boolean;
 }
 
 export interface StoredResponse {

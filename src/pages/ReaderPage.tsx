@@ -5,11 +5,12 @@ import { M, Q, type Chapter } from '../api/queries';
 import { ErrorBox, Spinner, toast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import { groupPrefFor, visibleChapters } from '../lib/groups';
-import { startSaving } from '../lib/offline';
+import { removeIfAuto, startSaving } from '../lib/offline';
 import { trackRead } from '../lib/tracker';
 import { preloadImage, useImage } from '../lib/useImage';
 import {
   effectivePrefs,
+  getSettings,
   updateMangaPrefs,
   updateSettings,
   useSettings,
@@ -124,6 +125,7 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
   const dirty = useRef(false);
   const numRef = useRef(-1); // chapter number of the open chapter, for AniList
   numRef.current = chapter?.chapterNumber ?? -1;
+  const finished = useRef(false); // reached the last page
   const timer = useRef<number | undefined>(undefined);
   const live = useRef({ current: 0, total: 0 });
   live.current = { current, total };
@@ -134,7 +136,10 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
     dirty.current = false;
     const { current: cur, total: tot } = live.current;
     const done = cur >= tot - 1;
-    if (done) trackRead(mangaId, numRef.current);
+    if (done) {
+      trackRead(mangaId, numRef.current);
+      finished.current = true;
+    }
     return M.updateChapter(chapterId, done ? { isRead: true, lastPageRead: cur } : { lastPageRead: cur }).catch(() => undefined);
   }, [chapterId, mangaId]);
 
@@ -152,6 +157,7 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
   useEffect(
     () => () => {
       void flush().then(() => {
+        if (finished.current && getSettings().clearReadSaved) void removeIfAuto(chapterId).catch(() => undefined);
         qc.invalidateQueries({ queryKey: ['chapters', mangaId] });
         qc.invalidateQueries({ queryKey: ['manga', mangaId] });
         qc.invalidateQueries({ queryKey: ['library'] });

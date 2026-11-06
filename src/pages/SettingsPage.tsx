@@ -160,6 +160,11 @@ This replaces those settings in this browser (the server and your sign-in are no
             <span>Save next chapters on this device while reading: {s.saveAhead || 'off'}</span>
             <input type="range" min={0} max={5} value={s.saveAhead} onChange={(e) => updateSettings({ saveAhead: Number(e.target.value) })} />
           </label>
+          {s.saveAhead > 0 && (
+            <label className="check">
+              <input type="checkbox" checked={s.clearReadSaved} onChange={(e) => updateSettings({ clearReadSaved: e.target.checked })} /> Remove them again once I have read them
+            </label>
+          )}
         </div>
         <p className="muted small">
           Saving ahead keeps the next unread chapters readable offline (see Offline library). It uses storage on this device, so it is off by default.
