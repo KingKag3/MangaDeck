@@ -292,7 +292,7 @@ This replaces those settings in this browser (the server and your sign-in are no
               </button>
             </>
           ) : (
-            <button className="btn" disabled={!/^d+$/.test(tracker.clientId.trim())} onClick={() => window.location.assign(authorizeUrl(tracker.clientId))}>
+            <button className="btn" disabled={!/^[0-9]+$/.test(tracker.clientId.trim())} onClick={() => window.location.assign(authorizeUrl(tracker.clientId))}>
               Connect AniList
             </button>
           )}

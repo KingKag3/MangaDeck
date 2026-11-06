@@ -180,6 +180,18 @@ for (const [name, path, expect] of [
   });
 }
 
+await check('settings: typing an AniList client id enables Connect', async () => {
+  await go('/settings');
+  await waitFor("/AniList tracking/.test(document.body.innerText)");
+  const btn = "[...document.querySelectorAll('button')].find((b) => /Connect AniList/.test(b.textContent))";
+  if (!(await evalJs(btn + '?.disabled'))) return 'Connect should be disabled without a client id';
+  await evalJs("[...document.querySelectorAll('label.field')].find((l) => /Client ID/.test(l.innerText)).querySelector('input').focus()");
+  await send('Input.insertText', { text: '12345' });
+  const enabled = await waitFor('!(' + btn + ').disabled');
+  await evalJs("localStorage.removeItem('mangadeck.anilist')");
+  if (!enabled) return 'Connect stayed disabled after typing a numeric client id';
+});
+
 await check('duplicates page renders', async () => {
   await go('/duplicates');
   const ok = await waitFor("/Duplicate series/.test(document.body.innerText) && /No duplicates found|Remove/.test(document.body.innerText)", 20000);
