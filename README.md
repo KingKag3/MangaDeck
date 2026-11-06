@@ -8,7 +8,11 @@ A faster, denser replacement UI for [Suwayomi-Server](https://github.com/Suwayom
 It keeps the Suwayomi server (and its whole Mihon/Tachiyomi extension ecosystem) and replaces only the
 interface, talking to the server's GraphQL API at `/api/graphql`.
 
-React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 7k lines.
+React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 15k lines, with 190 unit tests and a browser smoke test.
+
+**New here?** Follow the step-by-step guide, [Installing Mangadeck with Suwayomi](docs/INSTALL.md) (Docker, adding an extension repository, your first series, phone access, updating, troubleshooting).
+
+Mangadeck does not host or ship any manga. It is a different front end for a Suwayomi server you run yourself; what you can read depends on the extensions you install there.
 
 ## Screenshots
 
@@ -53,10 +57,10 @@ docker compose up -d --build
 The compose file starts Suwayomi and Mangadeck together. nginx serves the UI and proxies `/api` to Suwayomi,
 so there is no CORS and nothing to configure. Data lives in `./suwayomi-data`.
 
-Already have a Suwayomi running? Delete the `suwayomi` service from `docker-compose.yml` and start with:
+Already have a Suwayomi running? Build only Mangadeck and point it at yours (see [the install guide](docs/INSTALL.md#i-already-run-suwayomi)):
 
 ```bash
-SUWAYOMI_URL=http://192.168.1.50:4567 docker compose up -d --build
+SUWAYOMI_URL=http://192.168.1.50:4567 docker compose up -d --build --no-deps mangadeck
 ```
 
 Already running Suwayomi in its own container (as on the author's machine, port 4567)? Do not run plain
@@ -98,10 +102,10 @@ It is the same web app in a frameless window, so Suwayomi still has to be runnin
 
 ## Tested
 
-Run end to end in headless Chrome against a live **Suwayomi-Server v2.4.2366** (Local source with generated paged,
-webtoon and CBZ series): library, categories, search/sort/filter, chapter selection, paged and webtoon readers,
-resume and progress saving, mark-read on finish, updates, history, browse and mobile layout. Not yet exercised:
-real extension sources, downloads of remote chapters, and UI_LOGIN auth.
+Developed and used daily against **Suwayomi-Server v2.4.2366** with real extension sources: library, categories, search/sort/filter, chapter selection,
+paged and webtoon readers, progress saving, updates, history, paced downloads, `.cbz` export and merge, offline reading, browse and mobile layout.
+Unit tests cover the parsing, pacing, zip, backup and tracking helpers; the smoke test drives the main pages in headless Chrome. Not yet exercised: UI_LOGIN auth
+against a real login, and AniList sign-in by anyone but the author (the push and retry logic is tested against a pretend AniList).
 
 ## What's in it
 
@@ -203,3 +207,7 @@ and fails on script errors, an empty library, a broken group list or group bar, 
 ## Ideas for next steps
 
 MyAnimeList sync, double-page spreads, a faster source migration, and reading chapters offline that were not saved first.
+
+## License
+
+[MIT](LICENSE). Mangadeck is an independent project and is not affiliated with Suwayomi, Mihon, AniList or Wikipedia.
