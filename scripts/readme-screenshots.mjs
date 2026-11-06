@@ -167,7 +167,7 @@ await shot('library-new-chapters', {
   height: 520,
   scale: 1.6,
 });
-await shot('library-shelves', { path: '/', width: 1180, height: 1000, setup: "(() => { localStorage.removeItem('mangadeck.fresh'); })()", scale: 1.6 });
+await shot('library-shelves', { path: '/', width: 1180, height: 1500, setup: "(() => { localStorage.removeItem('mangadeck.fresh'); })()", scale: 1.6 });
 
 ws.close();
 chrome.kill();

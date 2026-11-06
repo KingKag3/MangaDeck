@@ -14,14 +14,6 @@ React + TypeScript + Vite, no UI framework, no GraphQL codegen. About 7k lines.
 
 Manga covers are blanked out in all screenshots; in the app they show the real covers.
 
-| Library with recommendations | Manga page with official volumes |
-| --- | --- |
-| ![Library](docs/screenshots/library.jpg) | ![Manga page](docs/screenshots/manga-volumes.jpg) |
-
-| Find a title in your sources from the library | Paced bulk downloads |
-| --- | --- |
-| ![Search sources](docs/screenshots/search-sources.jpg) | ![Paced downloads](docs/screenshots/paced-downloads.jpg) |
-
 ### Downloads
 
 Bulk downloads and `.cbz` exports are saved jobs that run one chapter at a time, show their progress here, and survive a reload. A chapter that keeps
@@ -42,7 +34,8 @@ files in and the page lists what you have, what is missing, and merges the volum
 ### Library: new chapters and what's popular
 
 After **Check for updates**, titles with new chapters get a green border and a "+N new" ribbon, and a bar offers to show only them or download the new
-chapters. Above your recommendations, **What's popular** shows what is trending on AniList right now.
+chapters. The library page is laid out in clear sections: Continue reading, **What's popular** (trending on AniList right now) and **Recommended for you**
+in boxed shelves, then **Your library** with its title count. Clicking a recommendation searches all your sources.
 
 ![Library: titles with new chapters](docs/screenshots/library-new-chapters.jpg)
 
