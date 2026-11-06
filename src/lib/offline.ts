@@ -146,7 +146,7 @@ export function cancelSaving() {
 }
 
 /** Save chapters for offline reading. Chapters the server has not downloaded wait between each other, as bulk downloads do. */
-export async function startSaving(items: SaveItem[], mangaTitle: string): Promise<{ started: boolean; skipped: number }> {
+export async function startSaving(items: SaveItem[], mangaTitle: string, quiet = false): Promise<{ started: boolean; skipped: number }> {
   if (job.running) return { started: false, skipped: 0 };
   const todo = items.filter((c) => !saved.has(c.id));
   const skipped = items.length - todo.length;
@@ -175,6 +175,7 @@ export async function startSaving(items: SaveItem[], mangaTitle: string): Promis
       if (!c.isDownloaded && c !== todo[todo.length - 1]) await sleep(waitMs(cfg, ++live));
     }
     setJob({ running: false, current: '' });
+    if (quiet) return; // saving ahead while reading: no toasts, the progress bar is enough
     if (job.failed) toast(`${job.failed} chapter${job.failed === 1 ? '' : 's'} could not be saved: ${job.error}`, 'error');
     else if (job.done && !signal.aborted) toast(`Saved ${job.done} chapter${job.done === 1 ? '' : 's'} for offline reading`);
   })();

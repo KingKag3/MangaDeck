@@ -5,6 +5,7 @@ import { M, Q, type Chapter } from '../api/queries';
 import { ErrorBox, Spinner, toast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
 import { groupPrefFor, visibleChapters } from '../lib/groups';
+import { startSaving } from '../lib/offline';
 import { trackRead } from '../lib/tracker';
 import { preloadImage, useImage } from '../lib/useImage';
 import {
@@ -181,6 +182,20 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
         .catch(() => undefined);
     }
   }, [idx, list, settings.autoDownloadNext]);
+
+  /* ----- save upcoming chapters on this device (offline reading) ----- */
+  const savedAhead = useRef(false);
+  const mangaTitle = manga.data?.title;
+  useEffect(() => {
+    if (savedAhead.current || !settings.saveAhead || !ready || idx < 0 || !mangaTitle || !navigator.onLine) return;
+    savedAhead.current = true;
+    const upcoming = list
+      .slice(Math.max(0, idx - settings.saveAhead), idx)
+      .reverse() // nearest chapter first
+      .filter((c) => !c.isRead)
+      .map((c) => ({ id: c.id, mangaId, name: c.name, chapterNumber: c.chapterNumber, isDownloaded: c.isDownloaded }));
+    if (upcoming.length) void startSaving(upcoming, mangaTitle, true).catch(() => undefined);
+  }, [ready, idx, list, mangaId, mangaTitle, settings.saveAhead]);
 
   /* ----- preloading ----- */
   useEffect(() => {

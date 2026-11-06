@@ -156,7 +156,14 @@ This replaces those settings in this browser (the server and your sign-in are no
               onChange={(e) => updateSettings({ autoDownloadNext: Number(e.target.value) })}
             />
           </label>
+          <label className="field">
+            <span>Save next chapters on this device while reading: {s.saveAhead || 'off'}</span>
+            <input type="range" min={0} max={5} value={s.saveAhead} onChange={(e) => updateSettings({ saveAhead: Number(e.target.value) })} />
+          </label>
         </div>
+        <p className="muted small">
+          Saving ahead keeps the next unread chapters readable offline (see Offline library). It uses storage on this device, so it is off by default.
+        </p>
         <p className="muted small">Each manga can override mode, direction and fit from the reader's settings panel.</p>
       </section>
 

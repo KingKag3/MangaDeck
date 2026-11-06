@@ -7,7 +7,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
-import { toMs } from '../lib/format';
+import { chapterLabel, toMs } from '../lib/format';
 import { newestChapterReleased } from '../lib/latest';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
 import { startPacedJob } from '../lib/pacer';
@@ -465,10 +465,17 @@ export default function LibraryPage() {
           <h2>Continue reading</h2>
           <Shelf>
             {continueReading.map((m) => (
-              <Link key={m.id} to={`/manga/${m.id}`} className="shelf-item" title={m.title}>
+              <Link
+                key={m.id}
+                to={m.firstUnreadChapter ? `/read/${m.id}/${m.firstUnreadChapter.id}` : `/manga/${m.id}`}
+                className="shelf-item"
+                title={m.firstUnreadChapter ? `${m.title}: continue with ${m.firstUnreadChapter.name}` : m.title}
+              >
                 <Cover path={m.thumbnailUrl} alt={m.title} />
                 <span className="shelf-title">{m.title}</span>
-                <span className="muted small">{m.unreadCount} unread</span>
+                <span className="muted small">
+                  {m.firstUnreadChapter ? `Continue · ${chapterLabel(m.firstUnreadChapter)}` : `${m.unreadCount} unread`}
+                </span>
               </Link>
             ))}
           </Shelf>

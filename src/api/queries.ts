@@ -40,6 +40,7 @@ export interface LibraryManga extends MangaBase {
   categories: { nodes: { id: number }[] };
   chapters: { totalCount: number };
   lastReadChapter: { id: number; lastReadAt: string } | null;
+  firstUnreadChapter: { id: number; name: string; chapterNumber: number } | null;
   latestFetchedChapter: { id: number; fetchedAt: string } | null;
   latestUploadedChapter: { id: number; uploadDate: string } | null;
 }
@@ -144,6 +145,7 @@ export const Q = {
           categories { nodes { id } }
           chapters { totalCount }
           lastReadChapter { id lastReadAt }
+          firstUnreadChapter { id name chapterNumber }
           latestFetchedChapter { id fetchedAt }
           latestUploadedChapter { id uploadDate }
         }
