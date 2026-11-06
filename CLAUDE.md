@@ -29,6 +29,9 @@ history, merged notes, library view). Never tokens, the server address, caches o
 those keys and reloads. Add a key to `BACKUP_KEYS` when you add a new persisted key that is not a cache.
 `settings.defaultGroup` / `defaultFill` give every series a preferred scanlation group; always read a manga's choice through `groupPrefFor()` (its own entry,
 including an explicit "All groups" stored as `{ group: null }` while a default is set, else the default). A group a series never had changes nothing.
+Settings can list every group across the library (`Q.libraryGroups`, `groupsAcrossLibrary()`, loaded on demand: it reads every chapter) and has a link to `/duplicates`
+(`DuplicatesPage`, `lib/duplicates.ts`: `titleKey()` ignores case, accents, punctuation, bracketed notes and a leading "The"; only equal keys match, so sequels stay apart; Remove only
+sets `inLibrary` false, downloads stay).
 
 ## Layout
 ```

@@ -5,6 +5,8 @@ import { M, Q } from '../api/queries';
 import { PageHeader, errorToast, toast } from '../components/ui';
 import { PRESET_LABELS, type PaceConfig, type PacePreset } from '../lib/pacer';
 import LoginDialog from '../components/LoginDialog';
+import { Link } from 'react-router-dom';
+import { groupsAcrossLibrary } from '../lib/groups';
 import { applyBackup, buildBackup, describeBackup, parseBackup } from '../lib/backup';
 import { updateSettings, useSettings, type Direction, type Fit, type ReaderMode } from '../lib/settings';
 
@@ -24,6 +26,14 @@ export default function SettingsPage() {
   });
   const num = (v: string) => Math.max(0, Number(v) || 0);
   const setCustom = (p: Partial<PaceConfig>) => updateSettings({ paceCustom: { ...s.paceCustom, ...p } });
+
+  const [showGroups, setShowGroups] = useState(false);
+  const groupList = useQuery({
+    queryKey: ['libraryGroups'],
+    queryFn: async () => groupsAcrossLibrary(await Q.libraryGroups()),
+    enabled: showGroups,
+    staleTime: 5 * 60_000,
+  });
 
   function downloadBackup() {
     const file = buildBackup(localStorage);
@@ -220,6 +230,33 @@ This replaces those settings in this browser (the server and your sign-in are no
           <input type="checkbox" checked={s.defaultFill} onChange={(e) => updateSettings({ defaultFill: e.target.checked })} />
           <span>With it, fill chapters it lacks from the other groups</span>
         </label>
+        <div className="row gap wrap">
+          <button className="btn ghost" onClick={() => (showGroups ? void groupList.refetch() : setShowGroups(true))} disabled={showGroups && groupList.isLoading}>
+            {showGroups ? (groupList.isLoading ? 'Reading your library…' : 'Refresh the list') : 'Show the groups in my library'}
+          </button>
+          <Link className="btn ghost" to="/duplicates">
+            Find duplicate series
+          </Link>
+        </div>
+        {showGroups && groupList.data && (
+          <ul className="merge-list group-list">
+            {groupList.data.slice(0, 25).map((g) => (
+              <li key={g.name} className="row gap">
+                <span className="grow merge-name" title={g.name}>
+                  {g.name}
+                </span>
+                <span className="muted small">
+                  {g.series} series · {g.chapters} chapters
+                </span>
+                {g.name !== 'Unknown group' && (
+                  <button className={`link-btn ${s.defaultGroup === g.name ? 'on' : ''}`} onClick={() => updateSettings({ defaultGroup: s.defaultGroup === g.name ? '' : g.name })}>
+                    {s.defaultGroup === g.name ? 'Preferred ✓' : 'Prefer'}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         <p className="muted small">
           A group chosen on a manga's own page wins over this. Series that never had the preferred group show every group, as before.
         </p>

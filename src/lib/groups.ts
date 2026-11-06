@@ -78,3 +78,30 @@ export function visibleChapters(all: Chapter[], pref: GroupPref | undefined, kee
   if (keepId !== undefined) include.add(keepId);
   return all.filter((c) => include.has(c.id));
 }
+
+export interface LibraryGroup {
+  name: string;
+  /** Series that have chapters from this group. */
+  series: number;
+  chapters: number;
+}
+
+/** Every scanlation group across the library, the ones on the most series first. */
+export function groupsAcrossLibrary(mangas: { chapters: { nodes: { scanlator: string | null }[] } }[]): LibraryGroup[] {
+  const map = new Map<string, LibraryGroup & { seen: Set<number> }>();
+  mangas.forEach((m, i) => {
+    for (const c of m.chapters.nodes) {
+      const name = groupOf(c);
+      const g = map.get(name) ?? { name, series: 0, chapters: 0, seen: new Set<number>() };
+      g.chapters++;
+      if (!g.seen.has(i)) {
+        g.seen.add(i);
+        g.series++;
+      }
+      map.set(name, g);
+    }
+  });
+  return [...map.values()]
+    .map(({ name, series, chapters }) => ({ name, series, chapters }))
+    .sort((a, b) => b.series - a.series || b.chapters - a.chapters || a.name.localeCompare(b.name));
+}

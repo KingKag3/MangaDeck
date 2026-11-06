@@ -12,6 +12,7 @@ import BrowsePage from './pages/BrowsePage';
 import SourcePage from './pages/SourcePage';
 import SettingsPage from './pages/SettingsPage';
 import FindPage from './pages/FindPage';
+import DuplicatesPage from './pages/DuplicatesPage';
 import LoginDialog from './components/LoginDialog';
 import { UNAUTHORIZED_EVENT } from './api/client';
 
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="updates" element={<UpdatesPage />} />
           <Route path="downloads" element={<DownloadsPage />} />
           <Route path="find" element={<FindPage />} />
+          <Route path="duplicates" element={<DuplicatesPage />} />
           <Route path="browse" element={<BrowsePage />} />
           <Route path="browse/:sourceId" element={<SourcePage />} />
           <Route path="settings" element={<SettingsPage />} />

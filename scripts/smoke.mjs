@@ -175,6 +175,40 @@ for (const [name, path, expect] of [
   });
 }
 
+await check('duplicates page renders', async () => {
+  await go('/duplicates');
+  const ok = await waitFor("/Duplicate series/.test(document.body.innerText) && /No duplicates found|Remove/.test(document.body.innerText)", 20000);
+  if (!ok) return 'page did not finish loading';
+});
+
+await check('settings lists the groups in the library and can prefer one', async () => {
+  await go('/settings');
+  await waitFor("/Backup/.test(document.body.innerText)");
+  await evalJs("[...document.querySelectorAll('button')].find((b) => /Show the groups/.test(b.textContent))?.click()");
+  const rows = await waitFor("document.querySelectorAll('.group-list li').length", 30000);
+  if (!rows) return 'no groups listed (library has no chapters, or the query failed)';
+  const clicked = await evalJs("(() => { const b = [...document.querySelectorAll('.group-list .link-btn')][0]; if (!b) return false; b.click(); return true; })()");
+  if (!clicked) return 'no group to prefer';
+  const saved = await waitFor("JSON.parse(localStorage.getItem('mangadeck.settings') || '{}').defaultGroup");
+  if (!saved) return 'preferred group was not saved';
+});
+
+if (firstId) {
+  await check('manga page group bar (when the series has several groups)', async () => {
+    await evalJs("localStorage.removeItem('mangadeck.settings')");
+    await go('/manga/' + firstId);
+    await waitFor("/chapters/i.test(document.body.innerText)");
+    const chips = await evalJs("document.querySelectorAll('.group-chip').length");
+    if (chips > 0) {
+      const clickedOne = await evalJs("(() => { const c = [...document.querySelectorAll('.group-chip')][1]; if (!c) return false; c.click(); return true; })()");
+      if (clickedOne) {
+        const on = await waitFor("document.querySelectorAll('.group-chip.on').length === 1");
+        if (!on) return 'choosing a group did not highlight it';
+      }
+    }
+  });
+}
+
 if (READER && firstId) {
   await check('reader opens the first chapter (saves a reading position)', async () => {
     await go(`/manga/${firstId}`);

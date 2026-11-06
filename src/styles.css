@@ -2091,3 +2091,38 @@ details.linked-sources > summary {
 .file-btn {
   cursor: pointer;
 }
+
+/* ---------- Duplicate series, group list ---------- */
+.dup-group h2 {
+  margin-bottom: 10px;
+}
+.dup-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.dup-item {
+  display: flex;
+  gap: 12px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.dup-item .cover {
+  width: 96px;
+  flex: none;
+}
+.dup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dup-info b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-list {
+  max-height: 260px;
+  overflow-y: auto;
+}

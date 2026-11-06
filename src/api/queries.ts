@@ -160,6 +160,16 @@ export const Q = {
     return d.mangas.nodes;
   },
 
+  /** The scanlator of every chapter in the library (heavy: only asked for from Settings). */
+  async libraryGroups(): Promise<{ chapters: { nodes: { scanlator: string | null }[] } }[]> {
+    const d = await gql(`{
+      mangas(condition: { inLibrary: true }) {
+        nodes { chapters { nodes { scanlator } } }
+      }
+    }`);
+    return d.mangas.nodes;
+  },
+
   async manga(id: number): Promise<MangaDetail> {
     const d = await gql(
       `query($id: Int!) {
