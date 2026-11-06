@@ -127,6 +127,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   Gachiakuta, One Piece, Berserk, Frieren …). Worth re-checking later: users can submit data there. Meanwhile it could
   supply a volume count plus per-volume dates and ISBNs (The Boxer: 13 volumes, more than Wikipedia's 11). Anime-Planet (no public API; a manga page is plain HTML that a server-side request can
   fetch, but it only shows a volume/chapter count, with no per-volume contents; scraping it would also need a relay).
+- **AniList rating and reviews** (`src/lib/rating.ts`, `components/RatingPanel.tsx`, collapsed line on the manga page): one AniList search by title
+  (only the title is sent), `pickMatch()` accepts a result only when one of its names equals the title after `normTitle()` (a plain search
+  returned a wrong 1k-reader entry for "Kaiju No. 8"; novels are skipped, most-read wins), so a series with no exact name shows nothing.
+  Shows the average score, readers, favourites and the top 3 reviews as AniList's one-line summaries with a link to the full review
+  (full review text is not copied). Cached in `mangadeck.ratings` (7 days, 1 day for "no match"). Not wired into library sort/filter yet.
 - **Community volume lists** (Share): a hand-made list shows a **Share** link on the manga page (`ShareDialog`, `volumeShare.ts`
   validates and formats it: title and chapter ranges only). **Send** inserts it into a Supabase table `volume_submissions`
   (`supabase/schema.sql`, project `pguaxzoqhdsujwtmiios`); Copy and Download are the fallback. Row-level security: anon can
@@ -203,8 +208,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   date, which extras (311.5), re-uploads and other groups' copies push to "today". It needs every title's chapter dates (`Q.chapterDates`, big), so that query runs only while this sort is selected.
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
   `timeAgo()` / `dayBucket()` in `format.ts`.
-- **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text.
-  `parseDescription()` splits them, otherwise the line clamp hides the synopsis behind the facts.
+- **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text, and
+  later changed to plain `Rating: …` / `Synopsis: …` lines (both forms are read; also Note and Alternative Names, and a
+  "(Source: …)" credit is dropped). `parseDescription()` splits them, otherwise the line clamp hides the synopsis behind the facts.
+  Manga page layout: title, author · status · source · facts on one muted line, then the description (the main thing, 5 lines,
+  "Show more" reveals notes and alternative names), then 5 tag chips, then the buttons.
 - **Sources are English only** unless `settings.showAllLanguages` is on (the Local source is always shown). Library
   "+ Sources" search asks English sources six at a time.
 - Outside services called from the browser: Wikipedia (volumes) and AniList (recommendations, hover descriptions).

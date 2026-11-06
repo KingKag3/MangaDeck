@@ -1591,6 +1591,18 @@ input[type='range'] {
 .desc-wrap .desc {
   margin-bottom: 4px;
   -webkit-line-clamp: 5;
+  font-size: 1.04rem;
+  line-height: 1.65;
+  color: #e4e6ed;
+}
+.hero-info .chips {
+  margin: 4px 0 16px;
+  gap: 5px;
+}
+.hero-info .chip {
+  font-size: 0.74rem;
+  padding: 2px 9px;
+  opacity: 0.85;
 }
 .desc-extra {
   margin: 10px 0;
@@ -1819,6 +1831,25 @@ details.linked-sources[open] {
 }
 details.linked-sources > summary {
   cursor: pointer;
+}
+.rating-panel {
+  margin-top: 6px;
+}
+.rating-reviews {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.rating-reviews li {
+  border-left: 2px solid var(--border, rgba(255, 255, 255, 0.15));
+  padding-left: 12px;
+  min-width: 0;
+}
+.rating-reviews p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
 }
 .linked-warn-tag {
   color: #ff8a8a;

@@ -61,7 +61,9 @@ export interface ParsedDescription {
   extras: { label: string; text: string }[];
 }
 
-const META_LINE = /^\s*\*\*(Rating|Year|Views)\*\*:\s*(.+?)\s*$/i;
+const META_LINE = /^\s*(?:\*\*)?(Rating|Year|Views)(?:\*\*)?:\s*(.+?)\s*$/i;
+/** Section headings the source may write with or without the ** markers ("Synopsis: …"). */
+const PLAIN_HEADING = /^\s*(?:\*\*)?(Synopsis|Notes?|Alternative Names|Alternate Names|Alt Names|Alternative Titles)(?:\*\*)?:[ \t]*(.*)$/i;
 
 /**
  * Some sources (Atsumaru) send "**Rating**: 8/10 / **Year**: … / **Synopsis**: …". Shown raw, those lines eat the
@@ -73,7 +75,8 @@ export function parseDescription(raw: string | null | undefined): ParsedDescript
   for (const line of (raw ?? '').replace(/\r\n?/g, '\n').split('\n')) {
     const m = META_LINE.exec(line);
     if (!m) {
-      kept.push(line);
+      const h = PLAIN_HEADING.exec(line);
+      kept.push(h ? `**${h[1]}**: ${h[2]}` : line);
       continue;
     }
     const [, label, value] = m;
@@ -92,6 +95,7 @@ export function parseDescription(raw: string | null | undefined): ParsedDescript
 
   const tidy = (s: string) =>
     s
+      .replace(/\(Source:[^)]*\)/gi, '') // publisher credit
       .replace(/\*\*(.+?)\*\*/g, '$1')
       .replace(/(^|\s)\*(\S[^*]*?)\*(?=\s|$)/g, '$1$2')
       .replace(/\n{3,}/g, '\n\n')

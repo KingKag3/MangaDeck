@@ -15,6 +15,7 @@ import MergeDialog from '../components/MergeDialog';
 import LocalFiles from '../components/LocalFiles';
 import { saveFolder } from '../lib/folderStore';
 import LinkedSources from '../components/LinkedSources';
+import RatingPanel from '../components/RatingPanel';
 import { withLinkedChapters } from '../lib/sourceLinks';
 import { markSeen } from '../lib/fresh';
 import { tagColor } from '../lib/tagColor';
@@ -33,7 +34,7 @@ import {
   type ReaderMode,
 } from '../lib/settings';
 
-const TAG_LIMIT = 8;
+const TAG_LIMIT = 5;
 
 export default function MangaPage() {
   const { id: idParam } = useParams();
@@ -441,22 +442,10 @@ Cancel: stop, so you can pick a group in the group bar first.`,
             {m.artist && m.artist !== m.author && <span>{m.artist}</span>}
             <span>{titleCase(m.status)}</span>
             {m.source && <span>{m.source.displayName}</span>}
+            {desc.meta.map((f) => (
+              <span key={f}>{f}</span>
+            ))}
           </div>
-          {m.genre?.length > 0 && (
-            <div className="chips">
-              {(allTags ? m.genre : m.genre.slice(0, TAG_LIMIT)).map((g) => (
-                <span key={g} className="chip tagged" style={{ ['--tc' as string]: tagColor(g) }}>
-                  {g}
-                </span>
-              ))}
-              {m.genre.length > TAG_LIMIT && (
-                <button className="chip chip-more" onClick={() => setAllTags(!allTags)}>
-                  {allTags ? 'Show less' : `+${m.genre.length - TAG_LIMIT} more`}
-                </button>
-              )}
-            </div>
-          )}
-          {desc.meta.length > 0 && <div className="desc-meta">{desc.meta.join('  ·  ')}</div>}
           {desc.text && (
             <div className="desc-wrap">
               <p className={`desc ${expanded ? 'open' : ''}`} onClick={() => setExpanded(!expanded)}>
@@ -472,6 +461,20 @@ Cancel: stop, so you can pick a group in the group bar first.`,
               {(desc.text.length > 260 || desc.extras.length > 0) && (
                 <button className="link-btn" onClick={() => setExpanded(!expanded)}>
                   {expanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </div>
+          )}
+          {m.genre?.length > 0 && (
+            <div className="chips">
+              {(allTags ? m.genre : m.genre.slice(0, TAG_LIMIT)).map((g) => (
+                <span key={g} className="chip tagged" style={{ ['--tc' as string]: tagColor(g) }}>
+                  {g}
+                </span>
+              ))}
+              {m.genre.length > TAG_LIMIT && (
+                <button className="chip chip-more" onClick={() => setAllTags(!allTags)}>
+                  {allTags ? 'Show less' : `+${m.genre.length - TAG_LIMIT} more`}
                 </button>
               )}
             </div>
@@ -520,6 +523,8 @@ Cancel: stop, so you can pick a group in the group bar first.`,
               </a>
             )}
           </div>
+
+          <RatingPanel title={m.title} />
 
           <LinkedSources
             id={id}

@@ -34,6 +34,18 @@ describe('parseDescription', () => {
     expect(parseDescription('**Year**: 2017\n**Views**: 16700622\n\n**Synopsis**: Hi').meta).toEqual(['2017', `${Number(16700622).toLocaleString()} views`]);
   });
 
+  it('reads the plain "Rating: / Synopsis:" format without ** markers', () => {
+    const d = parseDescription(
+      'Rating: 8.35/10\n\nYear: 2020\n\nViews: 3.2M\n\nSynopsis: Momo meets Okarun.\n\n(Source: VIZ Media)\n\nNote: Nominated for an award.\n\nAlternative Names:\n- A\n- B',
+    );
+    expect(d.meta).toEqual(['★ 8.35/10', '2020', '3.2M views']);
+    expect(d.text).toBe('Momo meets Okarun.');
+    expect(d.extras).toEqual([
+      { label: 'Note', text: 'Nominated for an award.' },
+      { label: 'Alternative Names', text: 'A  ·  B' },
+    ]);
+  });
+
   it('returns plain text unchanged when there are no headings', () => {
     expect(parseDescription('Just a story.')).toEqual({ meta: [], text: 'Just a story.', extras: [] });
     expect(parseDescription(null)).toEqual({ meta: [], text: '', extras: [] });
