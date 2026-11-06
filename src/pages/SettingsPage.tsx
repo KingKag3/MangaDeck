@@ -6,7 +6,7 @@ import { PageHeader, errorToast, toast } from '../components/ui';
 import { PRESET_LABELS, type PaceConfig, type PacePreset } from '../lib/pacer';
 import LoginDialog from '../components/LoginDialog';
 import { Link } from 'react-router-dom';
-import { authorizeUrl, disconnect, isConnected, redirectUrl, setClientId, useTracker } from '../lib/tracker';
+import { authorizeUrl, disconnect, flushQueue, isConnected, queuedCount, redirectUrl, setClientId, useTracker } from '../lib/tracker';
 import { groupsAcrossLibrary } from '../lib/groups';
 import { applyBackup, buildBackup, describeBackup, parseBackup } from '../lib/backup';
 import { updateSettings, useSettings, type Direction, type Fit, type ReaderMode } from '../lib/settings';
@@ -309,6 +309,21 @@ This replaces those settings in this browser (the server and your sign-in are no
             </button>
           )}
         </div>
+        {queuedCount(tracker) > 0 && (
+          <div className="row gap wrap">
+            <span className="small">
+              {queuedCount(tracker)} series waiting to be sent to AniList (it could not be reached). They are retried automatically.
+            </span>
+            <button
+              className="btn ghost"
+              onClick={() =>
+                void flushQueue().then((n) => toast(n ? `Sent progress for ${n} series` : queuedCount() ? 'AniList still cannot be reached' : 'Nothing was changed on AniList'))
+              }
+            >
+              Try now
+            </button>
+          </div>
+        )}
         <p className="muted small">
           Each series is linked to the AniList entry with exactly its title (or one you pick on the series page, under "Track on AniList"). Sign-in lasts about a year.
           Each address you open Mangadeck at (for example localhost:8080 and localhost:5173) is signed in on its own, and the redirect URL above must match the one you register.

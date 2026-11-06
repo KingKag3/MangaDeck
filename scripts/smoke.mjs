@@ -192,6 +192,58 @@ await check('settings: typing an AniList client id enables Connect', async () =>
   if (!enabled) return 'Connect stayed disabled after typing a numeric client id';
 });
 
+if (firstId) {
+  await check('AniList: progress that could not be sent is kept, retried, and a pull with nothing new changes nothing', async () => {
+    // A pretend AniList: in "down" mode every request fails like a lost connection. Installed before the app loads,
+    // so its own start-up retry cannot reach the real AniList with the made-up token.
+    const hook = await send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `(() => {
+        const real = window.fetch.bind(window);
+        window.__al = { down: true, calls: [] };
+        window.fetch = (input, init) => {
+          const url = typeof input === 'string' ? input : input.url;
+          if (!/graphql\.anilist\.co/.test(url)) return real(input, init);
+          const body = String(init && init.body || '');
+          window.__al.calls.push(body);
+          if (window.__al.down) return Promise.reject(new TypeError('Failed to fetch'));
+          const data = body.includes('SaveMediaListEntry') ? { SaveMediaListEntry: { id: 1 } }
+            : { Media: { chapters: null, mediaListEntry: { progress: body.includes('mediaListEntry{progress}') ? 0 : 0, status: 'CURRENT' } } };
+          return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        };
+      })();`,
+    });
+    try {
+      await go('/');
+      await evalJs(`localStorage.setItem('mangadeck.anilist', JSON.stringify({ clientId: '1', token: 'made-up', expiresAt: Date.now() + 86400000, name: 'tester' }));
+        localStorage.setItem('mangadeck.tracker', JSON.stringify({ '${firstId}': { mediaId: 1, title: 'Test', total: null, url: 'https://anilist.co/manga/1' } }));
+        localStorage.setItem('mangadeck.trackerQueue', JSON.stringify({ '${firstId}': 5 }))`);
+      await go('/settings');
+      const btn = "[...document.querySelectorAll('button')].find((b) => /Try now/.test(b.textContent))";
+      if (!(await waitFor('!!' + btn))) return 'Settings does not show the waiting progress with a Try now button';
+      await evalJs(btn + '.click()');
+      if (!(await waitFor("/still cannot be reached/.test(document.body.innerText)"))) return 'no notice that AniList could not be reached';
+      if (!(await evalJs("localStorage.getItem('mangadeck.trackerQueue')")).includes('5')) return 'the waiting progress was lost while AniList was down';
+      await evalJs('window.__al.down = false; window.__al.calls = []');
+      await evalJs(btn + '.click()');
+      if (!(await waitFor("/Sent progress for 1 series/.test(document.body.innerText)"))) return 'retry did not report sending progress';
+      const sent = await evalJs('window.__al.calls.some((c) => c.includes("SaveMediaListEntry") && /"p":5/.test(c))');
+      if (!sent) return 'retry did not write chapter 5 to AniList';
+      if ((await evalJs("localStorage.getItem('mangadeck.trackerQueue')")) !== '{}') return 'the queue was not emptied after sending';
+      // Pulling when AniList has nothing ahead of what is read here must not mark anything.
+      await go(`/manga/${firstId}`);
+      await evalJs('window.__al.down = false'); // a new page starts with the pretend AniList down again
+      const pull = "[...document.querySelectorAll('button')].find((b) => /Get progress from AniList/.test(b.textContent))";
+      await evalJs("document.querySelector('details.tracker-panel > summary')?.click()");
+      if (!(await waitFor('!!' + pull))) return 'manga page has no Get progress from AniList button';
+      await evalJs(pull + '.click()');
+      if (!(await waitFor("/Nothing to mark/.test(document.body.innerText)"))) return 'pull did not report that there was nothing to mark';
+    } finally {
+      await evalJs("['mangadeck.anilist','mangadeck.tracker','mangadeck.trackerQueue'].forEach((k) => localStorage.removeItem(k))").catch(() => undefined);
+      await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: hook.identifier });
+    }
+  });
+}
+
 await check('duplicates page renders', async () => {
   await go('/duplicates');
   const ok = await waitFor("/Duplicate series/.test(document.body.innerText) && /No duplicates found|Remove/.test(document.body.innerText)", 20000);

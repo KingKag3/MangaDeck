@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import type { Chapter } from '../api/queries';
-import { autoLink, isConnected, pushProgress, searchAniList, setLink, useTracker, type Candidate } from '../lib/tracker';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { M, type Chapter } from '../api/queries';
+import { autoLink, chaptersToMark, fetchRemoteProgress, isConnected, pushProgress, searchAniList, setLink, useTracker, type Candidate } from '../lib/tracker';
 import { errorToast, toast } from './ui';
 
 /**
@@ -23,6 +23,7 @@ export default function TrackerPanel({ mangaId, title, chapters }: { mangaId: nu
     void autoLink(mangaId, title).catch(() => undefined);
   }, [connected, link, tried, mangaId, title]);
 
+  const qc = useQueryClient();
   const search = useMutation({ mutationFn: (s: string) => searchAniList(s), onError: errorToast });
   const sync = useMutation({
     mutationFn: async () => {
@@ -33,6 +34,22 @@ export default function TrackerPanel({ mangaId, title, chapters }: { mangaId: nu
       return r;
     },
     onSuccess: (r) => toast(r.changed ? `AniList progress set to chapter ${r.progress}` : `AniList is already at chapter ${r.progress} or further`),
+    onError: errorToast,
+  });
+
+  const pull = useMutation({
+    mutationFn: async () => {
+      const progress = await fetchRemoteProgress(mangaId);
+      if (progress === null) throw new Error('AniList has no entry for you on this series yet.');
+      const ids = chaptersToMark(chapters, progress);
+      if (ids.length) await M.updateChapters(ids, { isRead: true });
+      return { progress, marked: ids.length };
+    },
+    onSuccess: ({ progress, marked }) => {
+      toast(marked ? `Marked ${marked} chapter${marked === 1 ? '' : 's'} read from AniList (up to chapter ${progress})` : `Nothing to mark: chapters up to ${progress} are already read here`);
+      for (const k of ['chapters', 'manga']) qc.invalidateQueries({ queryKey: [k, mangaId] });
+      qc.invalidateQueries({ queryKey: ['library'] });
+    },
     onError: errorToast,
   });
 
@@ -70,7 +87,12 @@ export default function TrackerPanel({ mangaId, title, chapters }: { mangaId: nu
         <div className="row gap wrap">
           {link && (
             <button className="btn ghost" onClick={() => sync.mutate()} disabled={sync.isPending}>
-              {sync.isPending ? 'Syncing…' : 'Sync progress now'}
+              {sync.isPending ? 'Syncing…' : 'Send my progress'}
+            </button>
+          )}
+          {link && (
+            <button className="btn ghost" onClick={() => pull.mutate()} disabled={pull.isPending} title="Mark chapters read here up to the chapter AniList has for you">
+              {pull.isPending ? 'Reading AniList…' : 'Get progress from AniList'}
             </button>
           )}
           <button
@@ -88,6 +110,9 @@ export default function TrackerPanel({ mangaId, title, chapters }: { mangaId: nu
             </button>
           )}
         </div>
+        {link && t.queue[String(mangaId)] && (
+          <p className="muted small">Chapter {t.queue[String(mangaId)]} is waiting to be sent: AniList could not be reached. It is retried automatically.</p>
+        )}
         {choosing && (
           <div className="pad-top">
             <div className="row gap">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { authorizeUrl, nextEntry, parseCallback, progressOf } from './tracker';
+import { authorizeUrl, chaptersToMark, nextEntry, parseCallback, progressOf, queueMerge } from './tracker';
 
 describe('AniList sign-in', () => {
   it('builds the authorize address from the client id', () => {
@@ -34,5 +34,27 @@ describe('progress rules', () => {
   it('completes a series when the last chapter is reached', () => {
     expect(nextEntry({ progress: 98, status: 'CURRENT' }, 100, 100)).toEqual({ progress: 100, status: 'COMPLETED' });
     expect(nextEntry(null, 8, 8)).toEqual({ progress: 8, status: 'COMPLETED' });
+  });
+});
+
+describe('retry queue and pulling', () => {
+  it('keeps the highest waiting number per series and ignores nothing-to-send', () => {
+    let q = queueMerge({}, 7, 12);
+    q = queueMerge(q, 7, 9);
+    expect(q).toEqual({ '7': 12 });
+    expect(queueMerge(q, 7, 13)).toEqual({ '7': 13 });
+    expect(queueMerge(q, 8, 0)).toBe(q);
+  });
+  it('marks only unread chapters that AniList progress covers', () => {
+    const ch = [
+      { id: 1, chapterNumber: 1, isRead: true },
+      { id: 2, chapterNumber: 2, isRead: false },
+      { id: 3, chapterNumber: 3.5, isRead: false },
+      { id: 4, chapterNumber: 4, isRead: false },
+      { id: 5, chapterNumber: -1, isRead: false },
+      { id: 6, chapterNumber: 0, isRead: false },
+    ];
+    expect(chaptersToMark(ch, 3)).toEqual([2, 3]);
+    expect(chaptersToMark(ch, 0)).toEqual([]);
   });
 });

@@ -30,7 +30,7 @@ only the links are in the backup file, never the token. The token goes only to `
 `MangaPage`'s mark-read mutation; `pushProgress()` is serialized, reads the current entry and writes only if ahead (`nextEntry()`: never lowers, COMPLETED when the last chapter is reached, a
 COMPLETED/REPEATING entry keeps its status). Whole chapters only (`Math.floor`). `TrackerPanel` (series page, only when connected) auto-links an exact title match once, offers Sync now / Change
 entry / Stop. The real sign-in cannot be automated (needs the user's AniList account); the push logic was tested against a mocked AniList through CDP `Fetch.fulfillRequest`.
-Not built: pulling progress from AniList, MyAnimeList, a retry queue for pushes made while AniList is unreachable (use Sync progress now).
+A push that fails because AniList is unreachable, rate limited or erroring (`RetryError`) is kept in `mangadeck.trackerQueue` (series id -> whole chapter, highest wins; `queueMerge()`) and retried by `flushQueue()` on the `online` event, 3 s after load, every 5 min and after any successful push; Settings shows the count with Try now. `fetchRemoteProgress()` + `chaptersToMark()` back the series page's "Get progress from AniList" (marks unread chapters up to AniList's number as read, never the other way). The smoke test covers both with a pretend AniList injected through `Page.addScriptToEvaluateOnNewDocument`. Not built: MyAnimeList, pulling a whole AniList list into the library.
 
 ## Offline reading
 Three parts. (1) **Last good answers**: `gql()` (`api/client.ts`) stores every successful query in IndexedDB (`lib/offlineDb.ts`, `responses`, key = query text + variables, newest 200 kept);
@@ -273,7 +273,7 @@ Not yet exercised: UI_LOGIN auth, and a full-volume `.cbz` opened in a real comi
 Good next step: grow the smoke test (reader paging, group bar) or move it to Playwright if it gets complicated.
 
 ## Ideas not built yet
-MyAnimeList sync, pulling progress from AniList, double-page spreads, source migration, reading chapters offline that were not saved first
+MyAnimeList sync, double-page spreads, source migration, reading chapters offline that were not saved first
 (the app is installable and saved chapters read offline).
 
 ## Style
