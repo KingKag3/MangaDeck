@@ -311,7 +311,7 @@ async function step(id: string) {
  * Download chapter `chapterId` of `mangaId` from one of the manga's linked sources instead (same chapter number).
  * Returns the source that had it, or null when no linked source could.
  */
-async function tryLinkedSources(mangaId: number, chapterId: number, signal: AbortSignal): Promise<{ source: string } | null> {
+export async function tryLinkedSources(mangaId: number, chapterId: number, signal: AbortSignal): Promise<{ source: string; chapterId: number } | null> {
   const links = getSettings().links[String(mangaId)] ?? [];
   if (links.length === 0) return null;
   try {
@@ -320,7 +320,7 @@ async function tryLinkedSources(mangaId: number, chapterId: number, signal: Abor
     for (const l of links) {
       const alt = findAltChapter(await Q.chapters(l.mangaId), own.chapterNumber);
       if (!alt) continue;
-      if (alt.isDownloaded || (await downloadOne(alt.id, signal)) === 'ok') return { source: l.source };
+      if (alt.isDownloaded || (await downloadOne(alt.id, signal)) === 'ok') return { source: l.source, chapterId: alt.id };
     }
   } catch {
     /* aborted or the server is unreachable: treat as not found */

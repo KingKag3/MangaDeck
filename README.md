@@ -183,7 +183,8 @@ Tests: `npm test` (Vitest) covers the parsing, pacing, zip, search, grouping and
 - Paced downloads wait in the browser, so keep a Mangadeck tab open while a long job runs (a hidden tab slows its
   timers, which only makes the waits longer). The server has no download delay setting of its own.
 - **.cbz exports and resuming**: an export job (`mangadeck.exportjobs` in localStorage) first downloads the missing chapters
-  through Suwayomi, then packs all chapters into one zip. A chapter that fails 3 times (after 1 and 2 minute waits) is
+  through Suwayomi, then packs all chapters into one zip. A chapter that fails 3 times (after 1 and 2 minute waits) is first tried on the series' linked sources
+  (**Other sources** on the manga page; the copy from the other source goes into the file), and only if none has it is it
   set aside and the rest keep downloading; after a 5 minute cool-down the set-aside chapters get one more pass. If some
   still fail, the job pauses with **Retry** and **Pack without them** (the one file is written without those chapters,
   and the history entry names them). Page and image fetches while packing retry 4 times. A zip is written as one stream, so a failed or paused pack restarts the file, but downloaded

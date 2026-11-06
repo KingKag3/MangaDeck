@@ -158,6 +158,9 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   (volume 0 = whole series) only asks for the save location (file picker must come from the click), then calls `startExportJob()`.
   The runner (`startExporter()` from `Layout`, Web Lock `mangadeck-exporter`) has two phases: `downloading` (`downloadOne()` per
   missing chapter with `waitMs` pacing and backoff; a chapter failing 3 times is moved to `job.parked` and the job carries on;
+  before a chapter is parked (3rd failure) `tryLinkedSources()` (exported from `pacer.ts`) looks for the same chapter number on the manga's
+  linked sources; a hit is stored in `job.alt[chapterId] = { id, source }` and `buildCbz` reads that copy (`packId()`), the history entry
+  says how many chapters came from other sources (`altNote()`);
   when `todo` is empty the parked ones get one more pass after a 5 min cool-down (`round` 1 to 2); if some still fail the job
   pauses (`needsDecision()`): Retry (`resumeExport`) or `packWithoutParked` which drops them from `items` and records `leftOut`)
   then `packing` (`buildCbz` streamed to the saved file handle). Always ONE output file, never parts. Jobs persist in `mangadeck.exportjobs`. File handles live in memory only, so after a reload a

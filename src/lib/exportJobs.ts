@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Chapter } from '../api/queries';
 import { buildCbz, canSaveToDisk, pickSaveFile, saveBlob, type PackMeta, type SaveHandle } from './export';
 import { logDownload } from './history';
-import { backoffMs, downloadOne, formatDuration, paceConfig, sleep, waitMs } from './pacer';
+import { backoffMs, downloadOne, formatDuration, paceConfig, sleep, tryLinkedSources, waitMs } from './pacer';
 import { getSettings } from './settings';
 
 /**
@@ -37,6 +37,8 @@ export interface ExportJob {
   round: 1 | 2;
   /** Labels of chapters you chose to leave out of the file. */
   leftOut?: string[];
+  /** Chapters this source could not give, taken from a linked source instead: chapter id -> where its pages are. */
+  alt?: Record<string, { id: number; source: string }>;
   phase: 'downloading' | 'packing';
   state: 'running' | 'paused' | 'done' | 'cancelled';
   /** Chapters downloaded (or skipped) so far, and chapters packed so far. */
@@ -169,6 +171,19 @@ export function pauseExport(id: string) {
   aborts.get(id)?.abort();
 }
 
+/** The chapter id whose pages go in the file: the linked source's copy when this source could not give it. */
+export function packId(j: Pick<ExportJob, 'alt'>, id: number): number {
+  return j.alt?.[String(id)]?.id ?? id;
+}
+
+/** ". 3 chapters came from other sources (MangaDex)" for the history entry, or "". */
+export function altNote(j: Pick<ExportJob, 'alt' | 'items'>): string {
+  const used = j.items.filter((i) => j.alt?.[String(i.id)]);
+  if (used.length === 0) return '';
+  const sources = [...new Set(used.map((i) => j.alt![String(i.id)].source))];
+  return `. ${used.length} chapter${used.length === 1 ? '' : 's'} came from other sources (${sources.join(', ')})`;
+}
+
 /** True when every chapter has been tried and only the set-aside ones are left: the job waits for you. */
 export function needsDecision(j: ExportJob): boolean {
   return j.state === 'paused' && j.phase === 'downloading' && j.todo.length === 0 && j.parked.length > 0;
@@ -276,6 +291,23 @@ async function downloadStep(job: ExportJob) {
   }
   const failStreak = cur.failStreak + 1;
   if (failStreak >= MAX_FAIL_STREAK) {
+    // First try the same chapter number on a linked source (Other sources on the manga page).
+    patch(id, { current: next, note: 'This source keeps failing. Trying a linked source…' });
+    const ac2 = new AbortController();
+    aborts.set(id, ac2);
+    const found = await tryLinkedSources(cur.mangaId, next, ac2.signal)
+      .catch(() => null)
+      .finally(() => aborts.delete(id));
+    const now = jobs.find((j) => j.id === id);
+    if (!now || now.state !== 'running') return;
+    if (found) {
+      const todo = now.todo.slice(1);
+      const done = now.done + 1;
+      patch(id, { alt: { ...(now.alt ?? {}), [next]: { id: found.chapterId, source: found.source } }, todo, done, failStreak: 0, current: undefined, note: undefined });
+      if (todo.length === 0) patch(id, { phase: 'packing' });
+      else await waitFor(id, waitMs(cfg, done));
+      return;
+    }
     // Set this chapter aside and keep going with the rest; it gets another go at the end.
     patch(id, {
       todo: cur.todo.slice(1),
@@ -306,7 +338,7 @@ async function packStep(job: ExportJob) {
   try {
     const { blob, pages } = await buildCbz({
       series: job.title,
-      items: job.items.map((i) => ({ chapter: { id: i.id, chapterNumber: i.chapterNumber } as Chapter, volume: i.volume })),
+      items: job.items.map((i) => ({ chapter: { id: packId(job, i.id), chapterNumber: i.chapterNumber } as Chapter, volume: i.volume })),
       volume: job.volume === 0 ? undefined : job.volume,
       meta: job.meta,
       sink: writable ? (part) => writable.write(part) : undefined,
@@ -324,7 +356,7 @@ async function packStep(job: ExportJob) {
       title: job.title,
       label: job.volume === 0 ? 'Complete series .cbz' : `Vol. ${String(job.volume).padStart(2, '0')} .cbz`,
       ok: true,
-      note: `${job.items.length} chapters, ${pages} pages${job.leftOut?.length ? `. Left out: ${job.leftOut.join(', ')}` : ''}`,
+      note: `${job.items.length} chapters, ${pages} pages${altNote(job)}${job.leftOut?.length ? `. Left out: ${job.leftOut.join(', ')}` : ''}`,
       where: writable ? `${job.fileName} (where you chose to save it)` : `${job.fileName} in your browser's Downloads folder`,
     });
   } catch (e) {
