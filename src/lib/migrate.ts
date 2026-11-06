@@ -14,6 +14,8 @@ export async function migrateSeries(o: {
   fromSource: string;
   toId: number;
   categoryIds: number[];
+  /** Keep the old entry linked as a fallback (default). False when its source no longer exists. */
+  keepOld?: boolean;
 }): Promise<{ read: number; bookmarks: number }> {
   const [from, to0] = await Promise.all([Q.chapters(o.fromId), Q.chapters(o.toId)]);
   let to = to0;
@@ -38,7 +40,8 @@ export async function migrateSeries(o: {
   // The old entry stays reachable as a fallback; the new one inherits the other links.
   const others = (s.links[String(o.fromId)] ?? []).filter((l) => l.mangaId !== o.toId && l.mangaId !== o.fromId);
   const old: LinkedSource = { mangaId: o.fromId, title: o.fromTitle, source: o.fromSource };
-  setLinks(o.toId, [old, ...others]);
+  // An old entry whose source is gone can never download anything, so it is not kept as a fallback.
+  setLinks(o.toId, o.keepOld === false ? others : [old, ...others]);
   setLinks(o.fromId, []);
   return { read: plan.readIds.length, bookmarks: plan.bookmarkIds.length };
 }

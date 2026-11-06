@@ -315,7 +315,12 @@ Cancel: stop, so you can pick a group in the group bar first.`,
   const everything = chapters.data ?? []; // every chapter from every group, newest first (sourceOrder desc)
   // Chapters that linked sources add (numbers this source lacks): used when packing .cbz files.
   const linkedLists = useQueries({
-    queries: (settings.links[String(id)] ?? []).map((l) => ({ queryKey: ['chapters', l.mangaId], queryFn: () => Q.chapters(l.mangaId), staleTime: 60_000 })),
+    // A linked entry whose source is no longer installed can never download, so it adds no chapters to a .cbz.
+    queries: (settings.links[String(id)] ?? []).map((l) => ({
+      queryKey: ['linkedChapters', l.mangaId],
+      queryFn: async () => ((await Q.manga(l.mangaId)).source ? Q.chapters(l.mangaId) : []),
+      staleTime: 60_000,
+    })),
   });
   const linkedData = linkedLists.map((q) => q.data);
   const groups = useMemo(() => listGroups(everything), [everything]);
@@ -520,6 +525,7 @@ Cancel: stop, so you can pick a group in the group bar first.`,
             id={id}
             title={m.title}
             sourceName={m.source?.displayName ?? 'this source'}
+            sourceMissing={!m.source}
             chapters={everything}
             categoryIds={m.categories.nodes.map((c) => c.id)}
           />

@@ -27,10 +27,12 @@ export default function LinkedSources({
   sourceName,
   chapters,
   categoryIds,
+  sourceMissing = false,
 }: {
   id: number;
   title: string;
   sourceName: string;
+  sourceMissing?: boolean;
   chapters: Chapter[];
   categoryIds: number[];
 }) {
@@ -126,7 +128,7 @@ export default function LinkedSources({
       return;
     setBusy(l.mangaId);
     try {
-      const r = await migrateSeries({ fromId: id, fromTitle: title, fromSource: sourceName, toId: l.mangaId, categoryIds });
+      const r = await migrateSeries({ fromId: id, fromTitle: title, fromSource: sourceName, toId: l.mangaId, categoryIds, keepOld: !sourceMissing });
       await qc.invalidateQueries();
       toast(`Moved. ${r.read} chapter${r.read === 1 ? '' : 's'} marked read${r.bookmarks ? `, ${r.bookmarks} bookmark${r.bookmarks === 1 ? '' : 's'} kept` : ''}.`);
       nav(`/manga/${l.mangaId}`);
@@ -138,11 +140,20 @@ export default function LinkedSources({
   }
 
   return (
-    <details className="reader-override linked-sources" open={links.length > 0 || undefined}>
-      <summary>Other sources{links.length ? ` (${links.length} linked)` : ''}</summary>
+    <details className="reader-override linked-sources" >
+      <summary>
+        Other sources{links.length ? ` (${links.length} linked)` : ''}
+        {sourceMissing && <span className="linked-warn-tag"> · source missing, open to fix</span>}
+      </summary>
+      {sourceMissing && (
+        <p className="linked-warn small">
+          The source this series came from is no longer installed, so it cannot download or update. Link it on a working source below, then press
+          “Move here”.
+        </p>
+      )}
       <p className="muted small pad-top">
-        Find this series on another source and link it. Chapters this source is missing can be downloaded from the linked one, and a chapter that
-        keeps failing here is tried there. You can also make a linked source the main one.
+        Find this series on other sources and link as many as you like. Chapters this source is missing can be downloaded from the linked ones, and
+        a chapter that keeps failing here is tried on each of them in turn (also in .cbz exports). You can also make a linked source the main one.
       </p>
 
       {links.map((l, i) => {

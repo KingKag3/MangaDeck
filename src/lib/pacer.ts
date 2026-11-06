@@ -318,6 +318,7 @@ export async function tryLinkedSources(mangaId: number, chapterId: number, signa
     const own = (await Q.chapters(mangaId)).find((c) => c.id === chapterId);
     if (!own || own.chapterNumber < 0) return null;
     for (const l of links) {
+      if (!(await Q.manga(l.mangaId)).source) continue; // its source is gone: nothing can be downloaded from it
       const alt = findAltChapter(await Q.chapters(l.mangaId), own.chapterNumber);
       if (!alt) continue;
       if (alt.isDownloaded || (await downloadOne(alt.id, signal)) === 'ok') return { source: l.source, chapterId: alt.id };

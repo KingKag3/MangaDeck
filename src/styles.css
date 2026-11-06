@@ -1812,6 +1812,21 @@ input[type='range'] {
 .linked-sources {
   margin-top: 6px;
 }
+details.linked-sources[open] {
+  padding: 10px 14px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+}
+details.linked-sources > summary {
+  cursor: pointer;
+}
+.linked-warn-tag {
+  color: #ff8a8a;
+}
+.linked-warn {
+  margin: 8px 0 0;
+  color: #ff8a8a;
+}
 .linked-row {
   display: flex;
   flex-wrap: wrap;
