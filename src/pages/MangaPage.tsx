@@ -6,7 +6,7 @@ import { Cover } from '../components/Cover';
 import { useImage } from '../lib/useImage';
 import { ErrorBox, Spinner, errorToast, toast } from '../components/ui';
 import { chapterLabel, parseDescription, timeAgo, titleCase } from '../lib/format';
-import { groupOf, listGroups, visibleChapters } from '../lib/groups';
+import { groupOf, groupPrefFor, listGroups, visibleChapters } from '../lib/groups';
 import { PARSER_VERSION, keepExtras, mergeNewVolumes, oneCopyEach, sameRanges, seriesChapters, summarizeVolumes, volumeChapters, volumeColor, volumeOf, type VolumeRange } from '../lib/volumes';
 import VolumeDialog from '../components/VolumeDialog';
 import { lookupVolumesEverywhere } from '../lib/fandom';
@@ -325,7 +325,7 @@ Cancel: stop, so you can pick a group in the group bar first.`,
   });
   const linkedData = linkedLists.map((q) => q.data);
   const groups = useMemo(() => listGroups(everything), [everything]);
-  const groupPref = settings.groups[String(id)];
+  const groupPref = groupPrefFor(settings, id);
   // `all` = the chapters of the chosen group (or everything when no group is chosen)
   const all = useMemo(() => visibleChapters(everything, groupPref), [everything, groupPref]);
   // The .cbz exports follow the chosen group (and "fill gaps") like the reader does; with no group chosen they take one copy of

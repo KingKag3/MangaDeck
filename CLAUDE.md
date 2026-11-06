@@ -23,6 +23,13 @@ Settings live in `localStorage` (`mangadeck.settings`, server override in `manga
 The service worker caches only `index.html` for navigations and never touches `/api`. nginx serves `sw.js` and the manifest with `no-cache`.
 `open-mangadeck-app.bat` opens a frameless `--app=` window without installing. Bump `SHELL` in `sw.js` if the caching ever changes.
 
+## Backup and preferred group
+`lib/backup.ts` (`BACKUP_KEYS`, `buildBackup/parseBackup/applyBackup`) and Settings, Backup: a JSON file of the browser-side keys (settings incl. groups, links, volumes,
+history, merged notes, library view). Never tokens, the server address, caches or unfinished jobs; IndexedDB folder handles cannot be exported. Restore replaces
+those keys and reloads. Add a key to `BACKUP_KEYS` when you add a new persisted key that is not a cache.
+`settings.defaultGroup` / `defaultFill` give every series a preferred scanlation group; always read a manga's choice through `groupPrefFor()` (its own entry,
+including an explicit "All groups" stored as `{ group: null }` while a default is set, else the default). A group a series never had changes nothing.
+
 ## Layout
 ```
 src/api/client.ts     gql() fetch client, UI_LOGIN JWT + refresh, fetchBlob() for authed images
@@ -237,14 +244,14 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
 
 ## Testing approach used so far
 Vitest (`npm test`) covers the pure helpers: groups, volumes parser/mapping, zip writer, ComicInfo, pacing maths, search, dates and
-description parsing. No UI tests in the repo. UI checks were done by driving the dev server in a browser (Playwright earlier, the
+description parsing. `npm run smoke` (`scripts/smoke.mjs`, headless Chrome over CDP, no dependencies) loads the main pages against the running app and fails on script errors; it only reads (`--reader` opens a chapter and saves a position). UI checks were done by driving the dev server in a browser (Playwright earlier, the
 Claude browser pane later) against a live Suwayomi, and by mocking `/api/graphql` with `page.route` for UI-only features.
 Not yet exercised: UI_LOGIN auth, and a full-volume `.cbz` opened in a real comic reader.
-Good next step: a Playwright smoke test in the repo.
+Good next step: grow the smoke test (reader paging, group bar) or move it to Playwright if it gets complicated.
 
 ## Ideas not built yet
-Tracker sync (AniList/MAL), double-page spreads, duplicate finder, source migration, backup/restore UI,
-PWA + offline reading of downloaded chapters, a "preferred group" default for the whole library.
+Tracker sync (AniList/MAL), double-page spreads, duplicate finder, source migration, 
+offline reading of downloaded chapters (the app is already installable).
 
 ## Style
 Keep it plain: function components, hooks, no new dependencies unless they clearly earn their place. Prefer small

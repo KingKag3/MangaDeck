@@ -5,6 +5,7 @@ import { M, Q } from '../api/queries';
 import { PageHeader, errorToast, toast } from '../components/ui';
 import { PRESET_LABELS, type PaceConfig, type PacePreset } from '../lib/pacer';
 import LoginDialog from '../components/LoginDialog';
+import { applyBackup, buildBackup, describeBackup, parseBackup } from '../lib/backup';
 import { updateSettings, useSettings, type Direction, type Fit, type ReaderMode } from '../lib/settings';
 
 export default function SettingsPage() {
@@ -23,6 +24,33 @@ export default function SettingsPage() {
   });
   const num = (v: string) => Math.max(0, Number(v) || 0);
   const setCustom = (p: Partial<PaceConfig>) => updateSettings({ paceCustom: { ...s.paceCustom, ...p } });
+
+  function downloadBackup() {
+    const file = buildBackup(localStorage);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+    a.download = `mangadeck-backup-${file.savedAt.slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('Backup saved');
+  }
+
+  async function restoreBackup(file: File | undefined) {
+    if (!file) return;
+    try {
+      const backup = parseBackup(await file.text());
+      const when = backup.savedAt ? ` from ${backup.savedAt.slice(0, 10)}` : '';
+      if (!window.confirm(`Restore the backup${when}?
+
+It holds ${describeBackup(backup)}.
+This replaces those settings in this browser (the server and your sign-in are not touched).`)) return;
+      applyBackup(localStorage, backup);
+      toast('Backup restored. Reloading…');
+      setTimeout(() => window.location.reload(), 600);
+    } catch (e) {
+      errorToast(e);
+    }
+  }
 
   function saveServer() {
     setServer(server);
@@ -181,9 +209,51 @@ export default function SettingsPage() {
           <span>Show sources in other languages (default: English only)</span>
         </label>
         <label className="field">
+          <span>Preferred scanlation group (for every series that has it)</span>
+          <input
+            value={s.defaultGroup}
+            onChange={(e) => updateSettings({ defaultGroup: e.target.value.trim() === '' ? '' : e.target.value })}
+            placeholder="Leave empty to show all groups. Type a name exactly as the group bar shows it, e.g. Delta"
+          />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={s.defaultFill} onChange={(e) => updateSettings({ defaultFill: e.target.checked })} />
+          <span>With it, fill chapters it lacks from the other groups</span>
+        </label>
+        <p className="muted small">
+          A group chosen on a manga's own page wins over this. Series that never had the preferred group show every group, as before.
+        </p>
+        <label className="field">
           <span>Cover size: {s.gridWidth}px</span>
           <input type="range" min={100} max={260} step={10} value={s.gridWidth} onChange={(e) => updateSettings({ gridWidth: Number(e.target.value) })} />
         </label>
+      </section>
+
+      <section className="panel">
+        <h2>Backup</h2>
+        <p className="muted small">
+          Your reader options, scanlation group choices, linked sources, volume lists, download history and library view live in this
+          browser. Save them to a file to move them to another computer or keep a copy before clearing browser data. Your series, reading
+          progress and downloads stay on the Suwayomi server and are not part of this file. The folder you chose for a series' .cbz files
+          cannot be saved and is picked again.
+        </p>
+        <div className="row gap wrap">
+          <button className="btn" onClick={downloadBackup}>
+            Download backup
+          </button>
+          <label className="btn ghost file-btn">
+            Restore from file…
+            <input
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={(e) => {
+                void restoreBackup(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        </div>
       </section>
 
       {showLogin && (

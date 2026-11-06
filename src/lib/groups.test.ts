@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Chapter } from '../api/queries';
-import { groupOf, listGroups, UNKNOWN_GROUP, visibleChapters } from './groups';
+import { groupOf, groupPrefFor, listGroups, UNKNOWN_GROUP, visibleChapters } from './groups';
 
 let nextId = 1;
 function ch(chapterNumber: number, scanlator: string | null, extra: Partial<Chapter> = {}): Chapter {
@@ -115,5 +115,21 @@ describe('visibleChapters', () => {
     const u = ch(1, null);
     const k = ch(2, 'K');
     expect(ids(visibleChapters([k, u], { group: UNKNOWN_GROUP, fill: false }))).toEqual(ids([u]));
+  });
+});
+
+describe('groupPrefFor', () => {
+  const base = { groups: { '5': { group: 'Alpha', fill: false }, '6': { group: null, fill: false } }, defaultGroup: 'Delta', defaultFill: true };
+  it('uses the manga own choice first, including an explicit all groups', () => {
+    expect(groupPrefFor(base, 5)).toEqual({ group: 'Alpha', fill: false });
+    expect(groupPrefFor(base, 6)).toEqual({ group: null, fill: false });
+  });
+  it('falls back to the library-wide group, or nothing', () => {
+    expect(groupPrefFor(base, 7)).toEqual({ group: 'Delta', fill: true });
+    expect(groupPrefFor({ ...base, defaultGroup: '' }, 7)).toBeUndefined();
+  });
+  it('a preferred group a series never had shows every chapter', () => {
+    const all = [ch(1, 'Alpha'), ch(2, 'Beta')];
+    expect(visibleChapters(all, groupPrefFor(base, 7))).toHaveLength(2);
   });
 });

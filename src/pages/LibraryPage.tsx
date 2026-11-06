@@ -11,7 +11,7 @@ import { toMs } from '../lib/format';
 import { newestChapterReleased } from '../lib/latest';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
 import { startPacedJob } from '../lib/pacer';
-import { visibleChapters } from '../lib/groups';
+import { groupPrefFor, visibleChapters } from '../lib/groups';
 import { fetchPopular, fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
 import RecDialog, { RecPeek } from '../components/RecDialog';
 import SourceResults from '../components/SourceResults';
@@ -229,7 +229,7 @@ export default function LibraryPage() {
     try {
       for (const m of mangas.filter((x) => fresh[String(x.id)] !== undefined)) {
         const all = await Q.chapters(m.id); // newest first
-        const shown = visibleChapters(all, settings.groups[String(m.id)]);
+        const shown = visibleChapters(all, groupPrefFor(settings, m.id));
         const ids = shown
           .slice(0, fresh[String(m.id)])
           .filter((c) => !c.isDownloaded)

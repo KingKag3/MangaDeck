@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { M, Q, type Chapter } from '../api/queries';
 import { ErrorBox, Spinner, toast } from '../components/ui';
 import { chapterLabel } from '../lib/format';
-import { visibleChapters } from '../lib/groups';
+import { groupPrefFor, visibleChapters } from '../lib/groups';
 import { preloadImage, useImage } from '../lib/useImage';
 import {
   effectivePrefs,
@@ -90,7 +90,7 @@ function ReaderInner({ mangaId, chapterId }: { mangaId: number; chapterId: numbe
 
   // newest first; follows the scanlation group picked on the manga page, so next/previous skip duplicates
   const everything = chapters.data ?? [];
-  const groupPref = settings.groups[String(mangaId)];
+  const groupPref = groupPrefFor(settings, mangaId);
   const list = useMemo(() => visibleChapters(everything, groupPref, chapterId), [everything, groupPref, chapterId]);
   const idx = list.findIndex((c) => c.id === chapterId);
   const chapter: Chapter | undefined = idx >= 0 ? list[idx] : undefined;

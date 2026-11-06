@@ -2087,3 +2087,7 @@ details.linked-sources > summary {
 .lib-head:first-child {
   margin-top: 8px;
 }
+
+.file-btn {
+  cursor: pointer;
+}

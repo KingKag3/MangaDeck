@@ -7,6 +7,16 @@ export interface GroupPref {
   fill: boolean;
 }
 
+/**
+ * The group choice for one manga: its own saved choice (including an explicit "All groups"), else the library-wide
+ * preferred group when one is set. A preferred group a series never had changes nothing (visibleChapters ignores it).
+ */
+export function groupPrefFor(s: { groups: Record<string, GroupPref>; defaultGroup: string; defaultFill: boolean }, mangaId: number): GroupPref | undefined {
+  const own = s.groups[String(mangaId)];
+  if (own) return own;
+  return s.defaultGroup ? { group: s.defaultGroup, fill: s.defaultFill } : undefined;
+}
+
 export const UNKNOWN_GROUP = 'Unknown group';
 
 export function groupOf(c: Pick<Chapter, 'scanlator'>): string {

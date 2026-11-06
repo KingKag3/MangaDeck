@@ -24,6 +24,8 @@ export interface Settings extends ReaderPrefs {
   showAllLanguages: boolean; // list sources in every language, not just English
   perManga: Record<string, Partial<ReaderPrefs>>;
   groups: Record<string, GroupPref>; // chosen scanlation group per manga
+  defaultGroup: string; // preferred group for every series that has it ('' = none)
+  defaultFill: boolean; // with the preferred group, fill chapters it lacks from other groups
   volumes: Record<string, VolumeInfo>; // official volume map found for a manga
   links: Record<string, LinkedSource[]>; // other sources carrying the same series, per manga
 }
@@ -43,6 +45,8 @@ const defaults: Settings = {
   showAllLanguages: false,
   perManga: {},
   groups: {},
+  defaultGroup: '',
+  defaultFill: true,
   volumes: {},
   links: {},
 };
@@ -87,7 +91,11 @@ export function updateMangaPrefs(mangaId: number, patch: Partial<ReaderPrefs> | 
 
 export function setGroupPref(mangaId: number, pref: GroupPref | null) {
   const groups = { ...state.groups };
-  if (pref === null || !pref.group) delete groups[String(mangaId)];
+  // With a library-wide preferred group, "All groups" must be remembered or the preferred group would come back.
+  if (pref === null || !pref.group) {
+    if (state.defaultGroup) groups[String(mangaId)] = { group: null, fill: false };
+    else delete groups[String(mangaId)];
+  }
   else groups[String(mangaId)] = pref;
   updateSettings({ groups });
 }
