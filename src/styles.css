@@ -2199,3 +2199,47 @@ details.reader-override > summary .muted {
 details.reader-override[open] > :not(summary) {
   margin-left: 15px;
 }
+
+/* keyboard shortcut list */
+.modal.shortcuts {
+  width: min(460px, 100%);
+}
+.modal.shortcuts h2 {
+  margin: 0 0 10px;
+  font-size: 1.1rem;
+}
+.shortcuts table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.92rem;
+}
+.shortcuts td,
+.shortcuts th {
+  padding: 5px 8px 5px 0;
+  vertical-align: top;
+  text-align: left;
+}
+.shortcuts td:first-child {
+  white-space: nowrap;
+  width: 1%;
+}
+.shortcuts th {
+  padding-top: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shortcuts kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 1px 7px;
+  text-align: center;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--surface-2, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}

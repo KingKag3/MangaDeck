@@ -15,6 +15,7 @@ import FindPage from './pages/FindPage';
 import DuplicatesPage from './pages/DuplicatesPage';
 import OfflinePage from './pages/OfflinePage';
 import AniListCallbackPage from './pages/AniListCallbackPage';
+import ShortcutHelp from './components/ShortcutHelp';
 import LoginDialog from './components/LoginDialog';
 import { UNAUTHORIZED_EVENT } from './api/client';
 
@@ -55,6 +56,7 @@ export default function App() {
           }}
         />
       )}
+      <ShortcutHelp />
       <ToastHost />
     </>
   );

@@ -7,6 +7,7 @@ import { Cover } from '../components/Cover';
 import { Empty, ErrorBox, PageHeader, Shelf, Spinner, Tabs, errorToast, toast } from '../components/ui';
 import { updateSettings, useSettings } from '../lib/settings';
 import { queryWords, titleHasWords } from '../lib/search';
+import { byScore, useLibraryScores } from '../lib/scores';
 import { chapterLabel, toMs } from '../lib/format';
 import { newestChapterReleased } from '../lib/latest';
 import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
@@ -16,13 +17,15 @@ import { fetchPopular, fetchRecommendations, pickSeeds, type Recommendation } fr
 import RecDialog, { RecPeek } from '../components/RecDialog';
 import SourceResults from '../components/SourceResults';
 
-type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated';
+type Sort = 'title' | 'unread' | 'lastRead' | 'added' | 'updated' | 'score';
 
 interface View {
   sort: Sort;
   desc: boolean;
   unreadOnly: boolean;
   downloadedOnly: boolean;
+  /** Hide titles whose AniList score is known and below this (0 = off). */
+  minScore: number;
 }
 
 const VIEW_KEY = 'mangadeck.libview';
@@ -33,11 +36,11 @@ const chapterCounts = (list: LibraryManga[]) => Object.fromEntries(list.map((m) 
 function loadView(): View {
   try {
     const raw = localStorage.getItem(VIEW_KEY);
-    if (raw) return { sort: 'title', desc: false, unreadOnly: false, downloadedOnly: false, ...JSON.parse(raw) };
+    if (raw) return { sort: 'title', desc: false, unreadOnly: false, downloadedOnly: false, minScore: 0, ...JSON.parse(raw) };
   } catch {
     /* ignore */
   }
-  return { sort: 'title', desc: false, unreadOnly: false, downloadedOnly: false };
+  return { sort: 'title', desc: false, unreadOnly: false, downloadedOnly: false, minScore: 0 };
 }
 
 /** When the newest chapter came out (the source's upload date). fetchedAt is only when we pulled the list, so it is the fallback. */
@@ -46,8 +49,10 @@ export function latestChapterAt(m: LibraryManga): number {
 }
 
 /** Title runs A to Z; every other sort starts with the most (unread) or newest (dates). "Reverse order" flips it. */
-function sortFn(sort: Sort, released: Map<number, number>): (a: LibraryManga, b: LibraryManga) => number {
+function sortFn(sort: Sort, released: Map<number, number>, scores: Map<number, number | null>): (a: LibraryManga, b: LibraryManga) => number {
   switch (sort) {
+    case 'score':
+      return (a, b) => byScore(scores.get(a.id), scores.get(b.id));
     case 'unread':
       return (a, b) => b.unreadCount - a.unreadCount;
     case 'lastRead':
@@ -77,6 +82,10 @@ export default function LibraryPage() {
     () => new Map((dates.data ?? []).map((m) => [m.id, newestChapterReleased(m.chapters.nodes)] as const)),
     [dates.data],
   );
+  // AniList scores for every title: one search each (cached), only while sorting or filtering by score.
+  const wantScores = view.sort === 'score' || view.minScore > 0;
+  const scoreItems = useMemo(() => (lib.data ?? []).map((m) => ({ id: m.id, title: m.title })), [lib.data]);
+  const lscores = useLibraryScores(scoreItems, wantScores);
   const [openRec, setOpenRec] = useState<Recommendation | null>(null);
 
   // Hovering a recommendation shows its description after a short pause, so no extra click is needed.
@@ -102,7 +111,7 @@ export default function LibraryPage() {
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [viewOpen]);
-  const activeFilters = Number(view.unreadOnly) + Number(view.downloadedOnly) + Number(view.desc);
+  const activeFilters = Number(view.unreadOnly) + Number(view.downloadedOnly) + Number(view.desc) + Number(view.minScore > 0);
   // Also look for the typed title in the English sources (to find something new to add).
   const [inSources, setInSources] = useState(() => {
     try {
@@ -213,14 +222,18 @@ export default function LibraryPage() {
       if (!titleHasWords(m.title, words)) return false;
       if (view.unreadOnly && m.unreadCount === 0) return false;
       if (view.downloadedOnly && m.downloadCount === 0) return false;
+      if (view.minScore > 0) {
+        const sc = lscores.scores.get(m.id);
+        if (sc != null && sc < view.minScore) return false; // unknown scores stay visible
+      }
       if (onlyFresh && freshIds.length > 0 && fresh[String(m.id)] === undefined) return false;
       return true;
     });
-    const cmp = sortFn(view.sort, released);
+    const cmp = sortFn(view.sort, released, lscores.scores);
     list = [...list].sort((a, b) => (view.desc ? -cmp(a, b) : cmp(a, b)));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mangas, cat, search, view, onlyFresh, fresh, released]);
+  }, [mangas, cat, search, view, onlyFresh, fresh, released, lscores.scores]);
 
   // Bring the highlighted titles up to date: download their new chapters, paced so the sources do not ban you.
   async function downloadNew() {
@@ -347,7 +360,13 @@ export default function LibraryPage() {
           <option value="lastRead">Last read</option>
           <option value="added">Date added</option>
           <option value="updated">Latest chapter</option>
+          <option value="score">AniList score</option>
         </select>
+        {wantScores && (lscores.error || lscores.loaded < scoreItems.length) && (
+          <span className="muted small" title={lscores.error || undefined}>
+            {lscores.error ? 'Scores paused' : `Scores ${lscores.loaded}/${scoreItems.length}`}
+          </span>
+        )}
         <div className="popover-wrap">
           <button
             className={`btn ghost ${viewOpen || activeFilters > 0 ? 'on' : ''}`}
@@ -377,6 +396,17 @@ export default function LibraryPage() {
                   onChange={(e) => setView({ ...view, downloadedOnly: e.target.checked })}
                 />
                 <span>Only downloaded</span>
+              </label>
+              <label className="field">
+                <span>Hide titles scored below</span>
+                <select className="input" value={view.minScore} onChange={(e) => setView({ ...view, minScore: Number(e.target.value) })}>
+                  <option value={0}>Show all</option>
+                  {[60, 70, 75, 80, 85].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field density">
                 <span>Cover size</span>

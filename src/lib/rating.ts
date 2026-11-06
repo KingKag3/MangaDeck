@@ -80,6 +80,12 @@ function readCache(): Cache {
   }
 }
 
+/** True when the answer for this title is already in this browser (no request needed). */
+export function hasCachedRating(title: string): boolean {
+  const hit = readCache()[normTitle(title)];
+  return !!hit && Date.now() - hit.at < (hit.rating ? 7 * DAY : DAY);
+}
+
 /** The AniList rating for a title, or null when AniList has no entry that matches by name. Throws when AniList cannot be reached. */
 export async function fetchRating(title: string): Promise<Rating | null> {
   const key = normTitle(title);

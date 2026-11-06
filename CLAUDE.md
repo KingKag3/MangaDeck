@@ -236,6 +236,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   **Sorts**: Title is A to Z; Unread, Last read, Date added and Latest chapter start with most/newest, "Reverse order" flips. Latest chapter uses
   `newestChapterReleased()` (`lib/latest.ts`): the earliest date of the highest whole chapter number, because `latestUploadedChapter` is the max upload
   date, which extras (311.5), re-uploads and other groups' copies push to "today". It needs every title's chapter dates (`Q.chapterDates`, big), so that query runs only while this sort is selected.
+- **Library score sort / filter** (`lib/scores.ts`, `useLibraryScores`): only while Sort is "AniList score" or "hide titles scored below" is set, one AniList title search per library
+  title through `fetchRating()` (same 7-day cache as the series page; 700 ms between uncached requests, stops quietly on an error and says "Scores paused"). Titles with no exact AniList
+  match have no score: they sort last and are never hidden by the filter. `view.minScore` lives in `mangadeck.libview`.
+- **Keyboard** (`components/ShortcutHelp.tsx`, mounted in `App`): `?` toggles the list, `/` focuses the page's search box, both ignored while typing in a field; the listener is
+  in the capture phase so Escape closes the list without also leaving the reader. Add a key to the list when you add one to the reader.
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
   `timeAgo()` / `dayBucket()` in `format.ts`.
 - **Descriptions**: some sources (Atsumaru) put `**Rating**:`, `**Year**:`, `**Views**:` and `**Synopsis**:` in the text, and

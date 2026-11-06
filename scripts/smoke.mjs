@@ -244,6 +244,51 @@ if (firstId) {
   });
 }
 
+await check('keyboard help opens with ? and closes with Escape; / jumps to the library search', async () => {
+  await go('/');
+  await waitFor("document.querySelectorAll('.grid .card').length");
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: '/', code: 'Slash', text: '/' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: '/', code: 'Slash' });
+  if (!(await waitFor("document.activeElement && document.activeElement.type === 'search'"))) return '/ did not focus the search box';
+  await evalJs('document.activeElement.blur()');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: '?', code: 'Slash', text: '?', modifiers: 8 });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: '?', code: 'Slash', modifiers: 8 });
+  if (!(await waitFor("!!document.querySelector('.shortcuts')"))) return '? did not open the shortcut list';
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' });
+  if (!(await waitFor("!document.querySelector('.shortcuts')"))) return 'Escape did not close the shortcut list';
+});
+
+await check('library sorts by AniList score (pretend AniList), best first, unscored last', async () => {
+  const hook = await send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `(() => {
+      const real = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if (!/graphql\.anilist\.co/.test(url)) return real(input, init);
+        const s = JSON.parse(init.body).variables.s || '';
+        const media = [{ id: 1, title: { english: s, romaji: null, native: null }, synonyms: [], format: 'MANGA', averageScore: (s.length * 7) % 100, popularity: 1, favourites: 1, siteUrl: 'x', reviews: { nodes: [] } }];
+        return Promise.resolve(new Response(JSON.stringify({ data: { Page: { media } } }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      };
+    })();`,
+  });
+  try {
+    await go('/');
+    await evalJs(`localStorage.removeItem('mangadeck.ratings'); localStorage.setItem('mangadeck.libview', JSON.stringify({ sort: 'score', desc: false, unreadOnly: false, downloadedOnly: false, minScore: 0 }))`);
+    await go('/');
+    if (!(await waitFor("document.querySelectorAll('.grid .card').length"))) return 'no cards';
+    const total = await evalJs("document.querySelectorAll('.grid .card').length");
+    const want = Math.min(5, total);
+    if (!(await waitFor(`(document.body.innerText.match(/Scores (\\d+)\\//) ? Number(document.body.innerText.match(/Scores (\\d+)\\//)[1]) : ${want}) >= ${want}`, 30000))) return 'scores did not load';
+    const titles = await evalJs("[...document.querySelectorAll('.grid .card .card-title')].slice(0, " + want + ').map((e) => e.textContent.trim())');
+    const sc = titles.map((t) => (t.length * 7) % 100);
+    for (let i = 1; i < sc.length; i++) if (sc[i] > sc[i - 1]) return `not best first: ${titles.map((t, k) => t + '=' + sc[k]).join(', ')}`;
+  } finally {
+    await evalJs("['mangadeck.libview','mangadeck.ratings'].forEach((k) => localStorage.removeItem(k))").catch(() => undefined);
+    await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: hook.identifier });
+  }
+});
+
 await check('duplicates page renders', async () => {
   await go('/duplicates');
   const ok = await waitFor("/Duplicate series/.test(document.body.innerText) && /No duplicates found|Remove/.test(document.body.innerText)", 20000);
