@@ -14,6 +14,7 @@ import { lookupVolumesEverywhere } from '../lib/fandom';
 import ShareDialog from '../components/ShareDialog';
 import MergeDialog from '../components/MergeDialog';
 import LocalFiles from '../components/LocalFiles';
+import ExportLog from '../components/ExportLog';
 import { saveFolder } from '../lib/folderStore';
 import LinkedSources from '../components/LinkedSources';
 import RatingPanel from '../components/RatingPanel';
@@ -76,15 +77,20 @@ export default function MangaPage() {
     };
   }
 
-  async function pack(volume: number) {
+  /** volume 0 = whole series, -1 = only the numbered chapters above `after` (the "new chapters" file to merge into a complete one). */
+  async function pack(volume: number, after = -1) {
     const ranges = settings.volumes[String(id)]?.ranges;
     const items =
       volume === 0
         ? seriesChapters(packable, ranges)
-        : volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
+        : volume < 0
+          ? seriesChapters(packable, ranges).filter((i) => i.chapter.chapterNumber > after)
+          : volumeChapters(packable, ranges, volume).map((chapter) => ({ chapter, volume }));
     if (!items.length) return;
     const series = manga.data!.title;
-    const suggested = `${safeFileName(series)} - ${volume === 0 ? 'Complete' : `Vol. ${String(volume).padStart(2, '0')}`}.cbz`;
+    const nums = items.map((i) => i.chapter.chapterNumber).filter((n) => n >= 0);
+    const label = volume === 0 ? 'Complete' : volume < 0 ? `New chapters ${Math.floor(Math.min(...nums))}-${Math.floor(Math.max(...nums))}` : `Vol. ${String(volume).padStart(2, '0')}`;
+    const suggested = `${safeFileName(series)} - ${label}.cbz`;
     if (volume === 0 && !canSaveToDisk && !confirm(`This browser can't save straight to disk, so all ${items.length} chapters are built in memory first. That can run out of memory. Continue?`)) return;
 
     // The file picker has to open straight from the click, before any waiting.
@@ -102,6 +108,7 @@ export default function MangaPage() {
       mangaId: id,
       title: series,
       volume,
+      fromChapter: volume < 0 ? after : undefined,
       fileName: suggested,
       items: items.map((i) => ({ id: i.chapter.id, chapterNumber: i.chapter.chapterNumber, volume: i.volume, label: chapterLabel(i.chapter) })),
       todo: items.filter((i) => !i.chapter.isDownloaded).map((i) => i.chapter.id),
@@ -555,6 +562,13 @@ Cancel: stop, so you can pick a group in the group bar first.`,
             sourceMissing={!m.source}
             chapters={everything}
             categoryIds={m.categories.nodes.map((c) => c.id)}
+          />
+
+          <ExportLog
+            mangaId={id}
+            newestChapter={all.reduce((hi, c) => Math.max(hi, c.chapterNumber), 0)}
+            countAfter={(n) => new Set(packable.filter((c) => c.chapterNumber > n).map((c) => c.chapterNumber)).size}
+            onSaveNew={(after) => void pack(-1, after)}
           />
 
           <LocalFiles key={folderKey} id={id} title={m.title} knownVolumes={volumeInfo?.ranges.map((r) => r.volume) ?? []} />

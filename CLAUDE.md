@@ -205,6 +205,10 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   volumes) starts one export job per volume (last volume first, since new jobs go on top and the runner takes the top running job), each with a lazy handle that creates its file in the picked folder only when packed; files already there are skipped. Finished exports notify when the tab is hidden (permission asked on start). Not yet tested end to end on a real series;
   known gaps: a stream cannot resume mid-file. `zip.ts` writes ZIP64 end/central records past 4 GB or 65,535 files (one entry
   inside must still be under 4 GB; `ZipBuilder` takes optional tiny `limits` so tests can exercise ZIP64).
+- **.cbz export log** (`components/ExportLog.tsx`, series page): lists this series' finished exports from the history (`lastChapter`, `chapterCount`, `fromChapter` are stored on
+  the entry by `exportJobs.ts`; older entries lack them). When the newest chapter is past the furthest export it shows "Save the new chapters as .cbz": `pack(-1, after)` in `MangaPage`
+  starts a job with `volume = -1` and `fromChapter` (only numbered chapters above it, named `Title - New chapters 201-251.cbz`, logged as "New chapters .cbz"). `LocalFiles.updateFor()`
+  treats a file named "New chapters" as new material for the complete file, so the existing "New since X / Add to it" merge picks it up; `mergeParts` skips chapters the base already has.
 - **Merge .cbz files** (`MergeDialog`, buttons on the Downloads page and the manga page; logic `src/lib/merge.ts`, reader `src/lib/zipRead.ts`):
   the user picks several .cbz files with a plain file input (no handles needed), they are sorted by volume (ComicInfo `<Volume>`/`<Number>`,
   else "Vol. 03" in the file name), can be reordered, and `mergeParts()` copies each page's stored bytes into a new zip via

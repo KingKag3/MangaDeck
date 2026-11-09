@@ -1887,6 +1887,28 @@ details.linked-sources > summary {
 .history {
   margin-top: 26px;
 }
+.export-log {
+  margin-top: 6px;
+}
+.export-log-title {
+  font-size: 1rem;
+  margin: 10px 0 4px;
+}
+.export-log-new {
+  margin: 0 0 6px;
+}
+.export-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.9rem;
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.export-log-what {
+  font-weight: 600;
+}
 .history-day {
   margin: 12px 0 4px;
   text-transform: uppercase;

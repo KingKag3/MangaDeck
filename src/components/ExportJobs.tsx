@@ -24,7 +24,7 @@ function useNow(active: boolean): number {
   return now;
 }
 
-const what = (j: ExportJob) => (j.volume === 0 ? 'Whole series as one .cbz' : `Vol. ${String(j.volume).padStart(2, '0')} as one .cbz`);
+const what = (j: ExportJob) => (j.volume === 0 ? 'Whole series as one .cbz' : j.volume < 0 ? `New chapters (after Ch. ${j.fromChapter ?? '?'}) as one .cbz` : `Vol. ${String(j.volume).padStart(2, '0')} as one .cbz`);
 
 function status(j: ExportJob, now: number): string {
   if (j.state === 'done') return 'Finished. The file was saved.';

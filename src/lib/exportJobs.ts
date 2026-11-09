@@ -23,8 +23,10 @@ export interface ExportJob {
   id: string;
   mangaId: number;
   title: string;
-  /** 0 = the whole series */
+  /** 0 = the whole series, -1 = only the chapters after `fromChapter` */
   volume: number;
+  /** For volume -1: the file holds the chapters numbered above this. */
+  fromChapter?: number;
   fileName: string;
   /** Every chapter of the file, in reading order. */
   items: ExportItem[];
@@ -115,6 +117,7 @@ export function startExportJob(o: {
   mangaId: number;
   title: string;
   volume: number;
+  fromChapter?: number;
   fileName: string;
   items: ExportItem[];
   todo: number[];
@@ -128,6 +131,7 @@ export function startExportJob(o: {
     mangaId: o.mangaId,
     title: o.title,
     volume: o.volume,
+    fromChapter: o.fromChapter,
     fileName: o.fileName,
     items: o.items,
     meta: o.meta,
@@ -339,7 +343,7 @@ async function packStep(job: ExportJob) {
     const { blob, pages } = await buildCbz({
       series: job.title,
       items: job.items.map((i) => ({ chapter: { id: packId(job, i.id), chapterNumber: i.chapterNumber } as Chapter, volume: i.volume })),
-      volume: job.volume === 0 ? undefined : job.volume,
+      volume: job.volume <= 0 ? undefined : job.volume,
       meta: job.meta,
       sink: writable ? (part) => writable.write(part) : undefined,
       onProgress: (p) => patch(id, { packed: p.chapter }),
@@ -354,10 +358,13 @@ async function packStep(job: ExportJob) {
       kind: job.volume === 0 ? 'series' : 'volume',
       mangaId: job.mangaId,
       title: job.title,
-      label: job.volume === 0 ? 'Complete series .cbz' : `Vol. ${String(job.volume).padStart(2, '0')} .cbz`,
+      label: job.volume === 0 ? 'Complete series .cbz' : job.volume < 0 ? 'New chapters .cbz' : `Vol. ${String(job.volume).padStart(2, '0')} .cbz`,
+      fromChapter: job.volume < 0 ? job.items.reduce((lo, i) => (i.chapterNumber >= 0 ? Math.min(lo, Math.floor(i.chapterNumber)) : lo), Infinity) : undefined,
       ok: true,
       note: `${job.items.length} chapters, ${pages} pages${altNote(job)}${job.leftOut?.length ? `. Left out: ${job.leftOut.join(', ')}` : ''}`,
       where: writable ? `${job.fileName} (where you chose to save it)` : `${job.fileName} in your browser's Downloads folder`,
+      lastChapter: job.items.reduce((hi, i) => (i.chapterNumber >= 0 ? Math.max(hi, Math.floor(i.chapterNumber)) : hi), -1),
+      chapterCount: job.items.length,
     });
   } catch (e) {
     if (writable) await writable.abort().catch(() => undefined);

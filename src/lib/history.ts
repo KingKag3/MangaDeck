@@ -19,6 +19,11 @@ export interface HistoryEntry {
   note?: string;
   /** Where a file went. Browsers hide full paths, so this is a file or folder name, or "Downloads folder". */
   where?: string;
+  /** For .cbz exports: the highest whole chapter number in the file, and how many chapters it holds. */
+  lastChapter?: number;
+  chapterCount?: number;
+  /** Set for a file of only the chapters after an earlier export: the first chapter number in it. */
+  fromChapter?: number;
 }
 
 export const HISTORY_KEY = 'mangadeck.history';
@@ -45,7 +50,10 @@ export function parseHistory(raw: string | null | undefined): HistoryEntry[] {
           typeof e.title === 'string' &&
           typeof e.label === 'string' &&
           typeof e.ok === 'boolean' &&
-          (e.where === undefined || typeof e.where === 'string'),
+          (e.where === undefined || typeof e.where === 'string') &&
+          (e.lastChapter === undefined || typeof e.lastChapter === 'number') &&
+          (e.chapterCount === undefined || typeof e.chapterCount === 'number') &&
+          (e.fromChapter === undefined || typeof e.fromChapter === 'number'),
       )
       .slice(0, HISTORY_MAX);
   } catch {

@@ -38,7 +38,10 @@ function updateFor(rows: Row[]): { base: Row; fresh: Row[] } | null {
   const bases = rows.filter((r) => r.volumes.length > 1 && !r.mergedInto);
   const base = bases.find((r) => /complete/i.test(r.name)) ?? [...bases].sort((a, b) => b.volumes.length - a.volumes.length)[0];
   if (!base) return null;
-  const fresh = rows.filter((r) => !r.mergedInto && r.volumes.length === 1 && !base.volumes.includes(r.volumes[0]));
+  // New volumes (one volume the base lacks) and "New chapters" files made from the series page (chapters after the base ends).
+  const fresh = rows.filter(
+    (r) => r !== base && !r.mergedInto && (/new chapters/i.test(r.name) || (r.volumes.length === 1 && !base.volumes.includes(r.volumes[0]))),
+  );
   return fresh.length ? { base, fresh } : null;
 }
 
@@ -205,7 +208,7 @@ export default function LocalFiles({ id, title, knownVolumes }: { id: number; ti
           {update && (
             <div className="row gap wrap update-hint">
               <span className="small">
-                New since <b>{update.base.name}</b>: {update.fresh.map((r) => `Vol. ${r.volumes[0]}`).join(', ')}.
+                New since <b>{update.base.name}</b>: {update.fresh.map((r) => (/new chapters/i.test(r.name) ? r.name.replace(/\.cbz$/i, '').replace(/^.* - /, '') : `Vol. ${r.volumes[0]}`)).join(', ')}.
               </span>
               <button
                 className="btn primary"
