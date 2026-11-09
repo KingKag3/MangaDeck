@@ -162,6 +162,11 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/** One history line when a whole job has finished ("187 of 187 chapters downloaded"), not one per chapter. Failures are still logged as they happen. */
+function logJobDone(job: PaceJob, done: number) {
+  logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label: `${done} of ${job.total} chapters downloaded`, ok: true });
+}
+
 function patch(id: string, p: Partial<PaceJob>) {
   write(jobs.map((j) => (j.id === id ? { ...j, ...p } : j)));
 }
@@ -270,11 +275,13 @@ async function step(id: string) {
   job = jobs.find((j) => j.id === id);
   if (!job || job.state !== 'running') return;
   if (result === 'ok') {
-    logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: true });
     const done = job.done + 1;
     const queue = job.queue.slice(1);
     patch(id, { queue, done, failStreak: 0, current: undefined });
-    if (queue.length === 0) patch(id, { state: 'done' });
+    if (queue.length === 0) {
+      patch(id, { state: 'done' });
+      logJobDone(job, done);
+    }
     else await waitFor(id, waitMs(cfg, done));
   } else {
     const failStreak = job.failStreak + 1;
@@ -284,11 +291,13 @@ async function step(id: string) {
       job = jobs.find((j) => j.id === id);
       if (!job || job.state !== 'running') return;
       if (alt) {
-        logDownload({ kind: 'chapter', mangaId: job.mangaId, title: job.title, label, ok: true, note: `from ${alt.source} (this source failed)` });
         const done = job.done + 1;
         const queue = job.queue.slice(1);
         patch(id, { queue, done, failStreak: 0, current: undefined });
-        if (queue.length === 0) patch(id, { state: 'done' });
+        if (queue.length === 0) {
+          patch(id, { state: 'done' });
+          logJobDone(job, done);
+        }
         else await waitFor(id, waitMs(cfg, done));
         return;
       }

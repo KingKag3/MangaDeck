@@ -3,12 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { Q } from '../api/queries';
 import { chapterLabel } from './format';
 import { logDownload } from './history';
-import { handledIds } from './pacer';
+import { getExportJobs } from './exportJobs';
+import { getJobs, handledIds } from './pacer';
 
 interface Seen {
   mangaId: number;
   title: string;
   label: string;
+}
+
+/**
+ * Is this chapter part of a .cbz export or paced job? Those jobs may run in another tab (only one tab runs them), whose
+ * `handledIds` this tab cannot see, but the saved jobs are shared, so look there. The job logs it (or the .cbz entry does).
+ */
+function belongsToJob(id: number): boolean {
+  return getExportJobs().some((j) => j.items.some((i) => i.id === id) || Object.values(j.alt ?? {}).some((a) => a.id === id)) || getJobs().some((j) => j.queue.includes(id) || j.current === id);
 }
 
 /**
@@ -29,7 +38,7 @@ export function useDownloadWatch() {
     const gone = [...seen.current.entries()].filter(([id]) => !now.has(id));
     seen.current = now;
     for (const [id, s] of gone) {
-      if (handledIds.has(id)) continue;
+      if (handledIds.has(id) || belongsToJob(id)) continue;
       Q.chapterDownloaded(id)
         .then((ok) => ok && logDownload({ kind: 'chapter', mangaId: s.mangaId, title: s.title, label: s.label, ok: true }))
         .catch(() => undefined);

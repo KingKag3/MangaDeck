@@ -98,6 +98,10 @@ function patch(id: string, p: Partial<ExportJob>) {
   write(jobs.map((j) => (j.id === id ? { ...j, ...p } : j)));
 }
 
+export function getExportJobs(): ExportJob[] {
+  return jobs;
+}
+
 export function useExportJobs(): ExportJob[] {
   return useSyncExternalStore(
     (cb) => {

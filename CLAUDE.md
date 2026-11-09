@@ -182,8 +182,8 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   bookmarks, copies volumes and reader options, removes the old entry from the library (downloads kept) and keeps it linked as a
   fallback. Linking calls `refreshManga` on the other entry so its chapter list exists.
 - **Download history**: `history.ts` keeps a log of finished and failed downloads in `mangadeck.history` (newest first, capped at
-  500, per browser; Suwayomi itself only knows its current queue). `logDownload()` is called from `pacer.ts` (one entry per
-  paced chapter, plus one when a chapter fails 3 times in a row) and from the `.cbz` exports in `MangaPage` (volume, whole
+  500, per browser; Suwayomi itself only knows its current queue). `logDownload()` is called from `pacer.ts` (one entry when a
+  whole paced job finishes, "187 of 187 chapters downloaded", plus one per chapter that fails 3 times in a row; `downloadWatch.ts` logs only downloads that belong to no saved job) and from the `.cbz` exports in `MangaPage` (volume, whole
   series, each-volume; failures too). Shown by `HistoryList` at the bottom of the Downloads page.
 - **Downloads are paced**: bulk actions use `startPacedJob()` (one chapter at a time, wait from Settings, backoff, auto-pause
   after 3 failures). The runner lives in `pacer.ts`, starts from `Layout`, and holds a Web Lock so only one tab runs it.
