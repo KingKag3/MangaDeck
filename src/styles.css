@@ -1793,8 +1793,19 @@ input[type='range'] {
 .paced-clear {
   margin-left: auto;
 }
-.paced-row .row-title {
+.paced-row .row-title,
+.history-row .row-title {
   display: block;
+}
+/* Long titles, chapter names and file paths wrap inside their card instead of running past it. */
+.paced-row .grow,
+.history-row .grow {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.paced-row,
+.history-row {
+  min-width: 0;
 }
 .job-queue {
   list-style: none;
