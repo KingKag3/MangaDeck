@@ -127,6 +127,12 @@ const MANGA_BASE = `id title thumbnailUrl inLibrary sourceId`;
 
 /* ---------- Queries ---------- */
 
+export interface UpdateRules {
+  excludeUnreadChapters: boolean;
+  excludeNotStarted: boolean;
+  excludeCompleted: boolean;
+}
+
 export const Q = {
   async categories(): Promise<Category[]> {
     const d = await gql(`{
@@ -275,6 +281,12 @@ export const Q = {
       libraryUpdateStatus { jobsInfo { isRunning totalJobs finishedJobs } }
     }`);
     return d.libraryUpdateStatus.jobsInfo;
+  },
+
+  /** Which titles the server's library update skips (all on by default, which makes "Check for updates" do nothing for a mostly unread library). */
+  async updateRules(): Promise<UpdateRules> {
+    const d = await gql(`{ settings { excludeUnreadChapters excludeNotStarted excludeCompleted } }`);
+    return d.settings;
   },
 
   async maxSourcesInParallel(): Promise<number> {
@@ -429,6 +441,14 @@ export const M = {
       { n },
     );
     return d.setSettings.settings.maxSourcesInParallel;
+  },
+
+  async setUpdateRules(r: Partial<UpdateRules>): Promise<UpdateRules> {
+    const d = await gql(
+      `mutation($s: PartialSettingsTypeInput!) { setSettings(input: { settings: $s }) { settings { excludeUnreadChapters excludeNotStarted excludeCompleted } } }`,
+      { s: r },
+    );
+    return d.setSettings.settings;
   },
 
   updateLibrary() {

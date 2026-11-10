@@ -157,6 +157,16 @@ export default function LibraryPage() {
     onSuccess: () => {
       toast('Checking your library for new chapters…');
       qc.invalidateQueries({ queryKey: ['updater'] });
+      // The server skips titles by its own rules; when that is everything it starts no job and says nothing.
+      setTimeout(async () => {
+        try {
+          const st = await qc.fetchQuery({ queryKey: ['updater'], queryFn: Q.updaterStatus, staleTime: 0 });
+          if (!st.isRunning && st.totalJobs === 0)
+            toast('Nothing was checked: the server skips titles with unread chapters, not started or completed. Change that in Settings, Library.', 'error');
+        } catch {
+          /* the next poll will show it */
+        }
+      }, 2500);
     },
     onError: errorToast,
   });
@@ -171,7 +181,7 @@ export default function LibraryPage() {
       qc.invalidateQueries({ queryKey: ['library'] }).then(() => {
         const data = qc.getQueryData<LibraryManga[]>(['library']);
         const grew = data ? recordNewChapters(chapterCounts(data)) : 0;
-        if (grew) toast(`${grew} title${grew === 1 ? '' : 's'} got new chapters: highlighted below`);
+        toast(grew ? `${grew} title${grew === 1 ? '' : 's'} got new chapters: highlighted below` : 'Update finished: no new chapters.');
       });
       qc.invalidateQueries({ queryKey: ['updates'] });
     }

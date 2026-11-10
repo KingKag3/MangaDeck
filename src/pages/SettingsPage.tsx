@@ -25,6 +25,12 @@ export default function SettingsPage() {
     onSuccess: (n) => qc.setQueryData(['max-sources-parallel'], n),
     onError: errorToast,
   });
+  const rules = useQuery({ queryKey: ['update-rules'], queryFn: Q.updateRules, retry: false });
+  const setRules = useMutation({
+    mutationFn: M.setUpdateRules,
+    onSuccess: (r) => qc.setQueryData(['update-rules'], r),
+    onError: errorToast,
+  });
   const num = (v: string) => Math.max(0, Number(v) || 0);
   const setCustom = (p: Partial<PaceConfig>) => updateSettings({ paceCustom: { ...s.paceCustom, ...p } });
 
@@ -224,6 +230,23 @@ This replaces those settings in this browser (the server and your sign-in are no
 
       <section className="panel">
         <h2>Library</h2>
+        <p className="small">Check for updates skips these titles (server setting). If it never finds anything, they are probably why:</p>
+        {rules.data ? (
+          (
+            [
+              ['excludeUnreadChapters', 'Titles you still have unread chapters in'],
+              ['excludeNotStarted', 'Titles you have not started reading'],
+              ['excludeCompleted', 'Titles marked completed'],
+            ] as const
+          ).map(([key, label]) => (
+            <label className="check" key={key}>
+              <input type="checkbox" checked={rules.data[key]} disabled={setRules.isPending} onChange={(e) => setRules.mutate({ [key]: e.target.checked })} />
+              <span>Skip: {label}</span>
+            </label>
+          ))
+        ) : (
+          <p className="muted small">{rules.isError ? 'Could not read the server setting.' : 'Loading…'}</p>
+        )}
         <label className="check">
           <input type="checkbox" checked={s.showBadges} onChange={(e) => updateSettings({ showBadges: e.target.checked })} />
           <span>Show unread and download badges on covers</span>
