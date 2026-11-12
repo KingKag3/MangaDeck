@@ -10,7 +10,8 @@ import { queryWords, titleHasWords } from '../lib/search';
 import { byScore, useLibraryScores } from '../lib/scores';
 import { chapterLabel, toMs } from '../lib/format';
 import { newestChapterReleased } from '../lib/latest';
-import { dismissAllFresh, recordNewChapters, snapshotCounts, useFresh } from '../lib/fresh';
+import { dismissAllFresh, useFresh } from '../lib/fresh';
+import { markManualUpdate, startLibraryUpdate } from '../lib/libraryUpdate';
 import { startPacedJob } from '../lib/pacer';
 import { groupPrefFor, visibleChapters } from '../lib/groups';
 import { fetchPopular, fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
@@ -29,9 +30,6 @@ interface View {
 }
 
 const VIEW_KEY = 'mangadeck.libview';
-
-/** Chapters per title, keyed by id: what "Check for updates" is compared against. */
-const chapterCounts = (list: LibraryManga[]) => Object.fromEntries(list.map((m) => [String(m.id), m.chapters.totalCount]));
 
 function loadView(): View {
   try {
@@ -150,13 +148,11 @@ export default function LibraryPage() {
 
   const runUpdate = useMutation({
     mutationFn: () => {
-      // Remember how many chapters everything has now, to see afterwards which titles grew.
-      snapshotCounts(chapterCounts(qc.getQueryData<LibraryManga[]>(['library']) ?? []));
-      return M.updateLibrary();
+      markManualUpdate();
+      return startLibraryUpdate(qc);
     },
     onSuccess: () => {
       toast('Checking your library for new chapters…');
-      qc.invalidateQueries({ queryKey: ['updater'] });
       // The server skips titles by its own rules; when that is everything it starts no job and says nothing.
       setTimeout(async () => {
         try {
@@ -171,21 +167,8 @@ export default function LibraryPage() {
     onError: errorToast,
   });
 
-  // Refresh the library when an update run finishes.
+  // The finished run is handled by useLibraryUpdates (Layout), so it works from any page.
   const running = updater.data?.isRunning;
-  const [wasRunning, setWasRunning] = useState(false);
-  useEffect(() => {
-    if (running) setWasRunning(true);
-    else if (wasRunning) {
-      setWasRunning(false);
-      qc.invalidateQueries({ queryKey: ['library'] }).then(() => {
-        const data = qc.getQueryData<LibraryManga[]>(['library']);
-        const grew = data ? recordNewChapters(chapterCounts(data)) : 0;
-        toast(grew ? `${grew} title${grew === 1 ? '' : 's'} got new chapters: highlighted below` : 'Update finished: no new chapters.');
-      });
-      qc.invalidateQueries({ queryKey: ['updates'] });
-    }
-  }, [running, wasRunning, qc]);
 
   const mangas = lib.data ?? [];
   const categories = cats.data ?? [];

@@ -230,6 +230,16 @@ This replaces those settings in this browser (the server and your sign-in are no
 
       <section className="panel">
         <h2>Library</h2>
+        <label className="field">
+          <span>Check for new chapters automatically</span>
+          <select value={s.autoCheckHours} onChange={(e) => updateSettings({ autoCheckHours: Number(e.target.value) })}>
+            <option value={0}>Off</option>
+            <option value={6}>Every 6 hours</option>
+            <option value={12}>Every 12 hours</option>
+            <option value={24}>Every day</option>
+          </select>
+        </label>
+        <p className="muted small">Runs the same check as the button, only while Mangadeck is open in a tab. Titles that gain chapters get the green ribbon.</p>
         <p className="small">Check for updates skips these titles (server setting). If it never finds anything, they are probably why:</p>
         {rules.data ? (
           (

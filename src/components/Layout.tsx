@@ -6,6 +6,7 @@ import { startPacer } from '../lib/pacer';
 import { startExporter } from '../lib/exportJobs';
 import { initRemoteRules } from '../lib/remoteRules';
 import { useDownloadWatch } from '../lib/downloadWatch';
+import { useLibraryUpdates } from '../lib/libraryUpdate';
 import OfflineBar from './OfflineBar';
 
 const NAV = [
@@ -25,6 +26,7 @@ export default function Layout() {
     void initRemoteRules();
   }, []);
   useDownloadWatch();
+  useLibraryUpdates();
 
   const { data: dl } = useQuery({
     queryKey: ['downloads'],

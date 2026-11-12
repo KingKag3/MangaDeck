@@ -243,6 +243,11 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
 - **Library score sort / filter** (`lib/scores.ts`, `useLibraryScores`): only while Sort is "AniList score" or "hide titles scored below" is set, one AniList title search per library
   title through `fetchRating()` (same 7-day cache as the series page; 700 ms between uncached requests, stops quietly on an error and says "Scores paused"). Titles with no exact AniList
   match have no score: they sort last and are never hidden by the filter. `view.minScore` lives in `mangadeck.libview`.
+- **Library updates** (`lib/libraryUpdate.ts`, `useLibraryUpdates()` mounted in `Layout`): `startLibraryUpdate()` saves chapter counts (`snapshotCounts`) then calls `M.updateLibrary`; the hook watches `['updater']`
+  from any page and, when a run ends, refetches the library, calls `recordNewChapters()` and toasts (the "no new chapters" toast only for a button press, `markManualUpdate()`).
+  `settings.autoCheckHours` (0 = off) starts a run on its own while the tab is visible (checks every 5 min, last start in `mangadeck.autoUpdateAt`, Web Lock `mangadeck-autoupdate`).
+  Suwayomi skips titles by `excludeUnreadChapters` / `excludeNotStarted` / `excludeCompleted` (all true by default, so a mostly unread library checks nothing): Settings, Library edits them
+  and the button explains when zero jobs started. `docs/CHECKLIST.md` lists the paths that need real use to test.
 - **Keyboard** (`components/ShortcutHelp.tsx`, mounted in `App`): `?` toggles the list, `/` focuses the page's search box, both ignored while typing in a field; the listener is
   in the capture phase so Escape closes the list without also leaving the reader. Add a key to the list when you add one to the reader.
 - **Dates**: Suwayomi sends `uploadDate` in milliseconds but `fetchedAt` in seconds. Always go through `toMs()` /
