@@ -89,7 +89,7 @@ export default function MangaPage() {
     if (!items.length) return;
     const series = manga.data!.title;
     const nums = items.map((i) => i.chapter.chapterNumber).filter((n) => n >= 0);
-    const label = volume === 0 ? 'Complete' : volume < 0 ? `New chapters ${Math.floor(Math.min(...nums))}-${Math.floor(Math.max(...nums))}` : `Vol. ${String(volume).padStart(2, '0')}`;
+    const label = volume === 0 ? 'Complete' : volume < 0 ? `New chapters ${Math.floor(Math.min(...nums))}${Math.floor(Math.max(...nums)) > Math.floor(Math.min(...nums)) ? `-${Math.floor(Math.max(...nums))}` : ''}` : `Vol. ${String(volume).padStart(2, '0')}`;
     const suggested = `${safeFileName(series)} - ${label}.cbz`;
     if (volume === 0 && !canSaveToDisk && !confirm(`This browser can't save straight to disk, so all ${items.length} chapters are built in memory first. That can run out of memory. Continue?`)) return;
 

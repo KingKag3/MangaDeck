@@ -247,7 +247,7 @@ parts connect, update it; it is plain mxfile XML and can be edited in diagrams.n
   from any page and, when a run ends, refetches the library, calls `recordNewChapters()` and toasts (the "no new chapters" toast only for a button press, `markManualUpdate()`).
   `settings.autoCheckHours` (0 = off) starts a run on its own while the tab is visible (checks every 5 min, last start in `mangadeck.autoUpdateAt`, Web Lock `mangadeck-autoupdate`).
   Suwayomi skips titles by `excludeUnreadChapters` / `excludeNotStarted` / `excludeCompleted` (all true by default, so a mostly unread library checks nothing): Settings, Library edits them
-  and the button explains when zero jobs started. `docs/CHECKLIST.md` lists the paths that need real use to test.
+  and the button explains when zero jobs started. `docs/CHECKLIST.md` lists the paths that need real use to test. `npm run e2e:append` (`scripts/e2e-append.mjs`, needs `npm run dev`) tests the new-chapters export and merge end to end against the real server, with the browser's private file system (OPFS) standing in for the pickers; tested on series 5041 "And Then There Were None".
   **Volume watch** (`lib/volumeWatch.ts`): when a run ends, `checkNewVolumes()` re-looks-up (`lookupVolumesEverywhere(..., { skipRules: true })`) every library title that has a saved volume list, at most once a day each
   (`mangadeck.volumeChecked`, the button bypasses that), 1.5 s apart, stopping quietly on an error. A higher volume than the saved list's last one is saved (web lists replaced, manual/rule lists only gain
   the newer volumes), toasted, and kept in `mangadeck.volumeNews` for the library's "New volumes" bar until dismissed. Kamjohn's server rules (`exclude*`) were set to false so updates skip nothing.
