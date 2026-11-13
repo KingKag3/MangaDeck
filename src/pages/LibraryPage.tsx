@@ -12,6 +12,7 @@ import { chapterLabel, toMs } from '../lib/format';
 import { newestChapterReleased } from '../lib/latest';
 import { dismissAllFresh, useFresh } from '../lib/fresh';
 import { markManualUpdate, startLibraryUpdate } from '../lib/libraryUpdate';
+import { dismissVolumeNews, useVolumeNews } from '../lib/volumeWatch';
 import { startPacedJob } from '../lib/pacer';
 import { groupPrefFor, visibleChapters } from '../lib/groups';
 import { fetchPopular, fetchRecommendations, pickSeeds, type Recommendation } from '../lib/recommend';
@@ -142,6 +143,7 @@ export default function LibraryPage() {
     refetchInterval: (q) => (q.state.data?.isRunning ? 2000 : false),
   });
 
+  const volumeNews = useVolumeNews();
   const fresh = useFresh();
   const freshIds = Object.keys(fresh);
   const [onlyFresh, setOnlyFresh] = useState(false);
@@ -430,6 +432,26 @@ export default function LibraryPage() {
       </PageHeader>
 
       {tabs.length > 1 && <Tabs value={String(cat)} onChange={(v) => setCat(v === 'all' ? 'all' : Number(v))} items={tabs} />}
+
+      {volumeNews.length > 0 && !selecting && (
+        <div className="fresh-bar">
+          <span>
+            New volumes:{' '}
+            {volumeNews.map((n, i) => (
+              <span key={n.mangaId}>
+                {i > 0 && ', '}
+                <Link to={`/manga/${n.mangaId}`}>
+                  <b>{n.title}</b>
+                </Link>{' '}
+                {n.what}
+              </span>
+            ))}
+          </span>
+          <button className="btn ghost" onClick={dismissVolumeNews}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {freshIds.length > 0 && !selecting && (
         <div className="fresh-bar">

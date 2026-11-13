@@ -4,6 +4,7 @@ import { M, Q, type LibraryManga } from '../api/queries';
 import { toast } from '../components/ui';
 import { recordNewChapters, snapshotCounts } from './fresh';
 import { getSettings } from './settings';
+import { checkNewVolumes } from './volumeWatch';
 
 /**
  * Library update runs ("Check for updates"), from the button or on a schedule. Suwayomi does the checking; this watches
@@ -71,6 +72,8 @@ export function useLibraryUpdates() {
       const grew = data ? recordNewChapters(chapterCounts(data)) : 0;
       if (grew) toast(`${grew} title${grew === 1 ? '' : 's'} got new chapters: highlighted in your library`);
       else if (wasManual) toast('Update finished: no new chapters.');
+      // A release also moves the volume lists: look for new volumes of the series that have one.
+      if (data) void checkNewVolumes(data, wasManual);
     });
     void qc.invalidateQueries({ queryKey: ['updates'] });
   }, [running, qc]);
